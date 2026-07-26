@@ -1,0 +1,14 @@
+[package]
+name = "nipa-download"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "librqbit 封装 + Mikan RSS 订阅（stub）"
+
+# 回流约束（§3.1）：不得依赖 axum/tower。
+# M0 阶段刻意不引入 librqbit（重依赖），M4 接入（版本与客户端对齐，§7.1）。
+
+[dependencies]
+nipa-core = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

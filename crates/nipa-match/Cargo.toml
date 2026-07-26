@@ -1,0 +1,29 @@
+# nipa-match：弹弹play 文件识别客户端（L1 层，开发文档 §4.1；API 细节见 docs/research/dandanplay-api.md）。
+#
+# 回流约束（§3.1）：不得依赖 axum/tower。
+
+[package]
+name = "nipa-match"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "弹弹play 文件识别客户端（认证双模式、match/batch、前 16MB MD5、匹配结果三分类）"
+
+[dependencies]
+nipa-core = { workspace = true }
+base64 = "0.22"
+hex = "0.4"
+md-5 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+serde = { workspace = true }
+sha2 = "0.10"
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["sync", "time"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"

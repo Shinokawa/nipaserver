@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nipaserver · 设计稿 v2</title>
+<style>
+/* ========== 设计 token（docs/05-webui设计.md §2） ========== */
+:root {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #242422;
+  --surface-3: #2e2e2b;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+  --hairline: rgba(255,255,255,0.10);
+  --hairline-2: rgba(255,255,255,0.16);
+  --accent: #3987e5;
+  --accent-2: #6da7ec;
+  --accent-dim: #184f95;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --series-3: #199e70;
+  --r-card: 12px;
+  --r-lg: 16px;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--page);
+  color: var(--ink-2);
+  font: 13.5px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+/* 环境光晕：极低饱和的氛围层 */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(57,135,229,.07), transparent 60%),
+    radial-gradient(700px 420px at -5% 108%, rgba(109,133,233,.05), transparent 60%);
+}
+::selection { background: var(--accent-dim); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 5px; border: 2px solid var(--page); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ========== 布局骨架 ========== */
+.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; position: relative; z-index: 1; }
+.sidebar {
+  border-right: 1px solid var(--hairline);
+  padding: 20px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 0; height: 100vh;
+  background: color-mix(in srgb, var(--page) 70%, transparent);
+  backdrop-filter: blur(10px);
+}
+.logo { display: flex; align-items: center; gap: 10px; padding: 6px 12px 22px; }
+.logo-mark {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(135deg, #2a78d6, #6da7ec);
+  box-shadow: 0 0 18px rgba(57,135,229,.4), inset 0 1px 0 rgba(255,255,255,.35);
+  display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 16px;
+}
+.logo b { color: var(--ink); font-size: 15px; letter-spacing: .2px; }
+.logo span { color: var(--ink-3); font-size: 11px; display: block; margin-top: -2px; }
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 9px; color: var(--ink-2);
+  cursor: pointer; user-select: none; font-weight: 500;
+  transition: background .15s, color .15s;
+}
+.nav-item svg { width: 17px; height: 17px; flex: none; opacity: .8; }
+.nav-item:hover { background: var(--surface); color: var(--ink); }
+.nav-item.active { background: var(--surface-2); color: var(--ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.nav-item.active svg { opacity: 1; color: var(--accent-2); }
+.nav-item .n-badge {
+  margin-left: auto; background: var(--warning); color: #201500;
+  font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 1px 7px;
+}
+.nav-sec { font-size: 11px; color: var(--ink-3); padding: 18px 12px 6px; text-transform: uppercase; letter-spacing: .08em; }
+.nav-foot { margin-top: auto; padding: 10px 12px; font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--hairline); }
+.nav-foot .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-right: 6px; box-shadow: 0 0 8px rgba(12,163,12,.6); }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 26px;
+  border-bottom: 1px solid var(--hairline);
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--page) 78%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+.search {
+  flex: 1; max-width: 420px; display: flex; align-items: center; gap: 9px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 10px; padding: 7.5px 12px; color: var(--ink-3); cursor: text;
+  transition: border-color .15s;
+}
+.search:hover { border-color: var(--hairline-2); }
+.search kbd {
+  margin-left: auto; font: 11px var(--mono); color: var(--ink-3);
+  border: 1px solid var(--hairline); border-radius: 5px; padding: 1px 5px;
+}
+.scan-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 999px; padding: 6px 14px; font-size: 12.5px; color: var(--ink-2);
+}
+.scan-pill .pulse {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 10px rgba(57,135,229,.7);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.bell { position: relative; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--hairline); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--ink-2); }
+.bell .b-dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); border: 2px solid var(--surface); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--surface-3), var(--surface-2)); border: 1px solid var(--hairline-2); display: grid; place-items: center; font-size: 12px; color: var(--ink); font-weight: 600; }
+
+.view { padding: 24px 26px 80px; display: none; }
+.view.active { display: block; }
+.view-title { font-size: 20px; font-weight: 650; color: var(--ink); margin-bottom: 4px; letter-spacing: -.01em; }
+.view-sub { color: var(--ink-3); font-size: 12.5px; margin-bottom: 22px; }
+
+/* ========== 通用组件 ========== */
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.025), transparent 40%), var(--surface);
+  border: 1px solid var(--hairline); border-radius: var(--r-card);
+}
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 2.5px 9px; border-radius: 999px;
+  border: 1px solid var(--hairline); color: var(--ink-2); background: var(--surface-2);
+}
+.badge .bdot { width: 6.5px; height: 6.5px; border-radius: 50%; }
+.badge.good { color: #7fd97f; border-color: rgba(12,163,12,.3); } .badge.good .bdot { background: var(--good); }
+.badge.warn { color: #ffd479; border-color: rgba(250,178,25,.3); } .badge.warn .bdot { background: var(--warning); }
+.badge.serious { color: #ffb59a; border-color: rgba(236,131,90,.3); } .badge.serious .bdot { background: var(--serious); }
+.badge.crit { color: #ff9d9d; border-color: rgba(208,59,59,.3); } .badge.crit .bdot { background: var(--critical); }
+.badge.acc { color: #9cc4f2; border-color: rgba(57,135,229,.35); } .badge.acc .bdot { background: var(--accent); }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 9px; padding: 7.5px 15px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; user-select: none;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 2px 12px rgba(57,135,229,.35), inset 0 1px 0 rgba(255,255,255,.25); }
+.btn-primary:hover { background: #4d93ea; }
+.btn-ghost { background: var(--surface-2); color: var(--ink-2); border-color: var(--hairline); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--hairline-2); }
+.btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 7px; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.tile { padding: 15px 17px; }
+.tile .t-label { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+.tile .t-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.tile .t-value { font-size: 27px; font-weight: 650; color: var(--ink); line-height: 1; }
+.tile .t-delta { font-size: 11.5px; font-weight: 600; }
+.tile .t-delta.up { color: var(--good); }
+.tile svg.spark { width: 76px; height: 30px; overflow: visible; }
+
+.meter { height: 6px; border-radius: 3px; background: var(--accent-dim); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.meter.m-good > i { background: var(--good); } .meter.m-good { background: #0a4d0a; }
+
+/* ========== 媒体库 ========== */
+/* Hero 横幅 */
+.hero {
+  position: relative; border-radius: var(--r-lg); overflow: hidden;
+  height: 300px; margin-bottom: 26px; border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+.hero .h-art { position: absolute; inset: 0; background: linear-gradient(120deg, #16233a 0%, #2b4a7a 35%, #6ea8c9 75%, #cfe3d8 100%); }
+.hero .h-art::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(700px 300px at 80% 20%, rgba(255,255,255,.14), transparent 55%),
+    linear-gradient(90deg, rgba(13,13,13,.94) 18%, rgba(13,13,13,.55) 45%, transparent 75%),
+    linear-gradient(0deg, rgba(13,13,13,.9), transparent 45%);
+}
+.hero .h-meta { position: absolute; left: 30px; bottom: 28px; max-width: 520px; }
+.hero .h-tag { display: flex; gap: 8px; margin-bottom: 12px; }
+.hero .h-title { font-size: 30px; font-weight: 750; color: #fff; letter-spacing: -.02em; line-height: 1.15; margin-bottom: 6px; text-shadow: 0 2px 18px rgba(0,0,0,.5); }
+.hero .h-sub { color: rgba(255,255,255,.75); font-size: 13px; margin-bottom: 16px; }
+.hero .h-actions { display: flex; gap: 10px; align-items: center; }
+.hero .h-prog { display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,.8); font-size: 12px; }
+.hero .h-prog .meter { width: 110px; background: rgba(255,255,255,.2); }
+
+.chip-row { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+.chip {
+  padding: 6px 15px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--hairline); color: var(--ink-2); cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.chip:hover { border-color: var(--hairline-2); color: var(--ink); }
+.chip.on { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.sec-title { font-size: 15px; font-weight: 650; color: var(--ink); margin: 26px 0 13px; display: flex; align-items: center; gap: 10px; }
+.sec-title .more { margin-left: auto; font-size: 12px; color: var(--ink-3); font-weight: 500; cursor: pointer; }
+.sec-title .more:hover { color: var(--accent-2); }
+
+.shelf { display: grid; grid-auto-flow: column; grid-auto-columns: 280px; gap: 14px; overflow-x: auto; padding: 4px 4px 10px; scrollbar-width: none; }
+.resume-card { position: relative; border-radius: var(--r-card); overflow: hidden; aspect-ratio: 16/9; cursor: pointer; border: 1px solid var(--hairline); transition: transform .18s ease, box-shadow .18s ease; }
+.resume-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.resume-card .art { position: absolute; inset: 0; }
+.resume-card .shade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,.86)); }
+.resume-card .play {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-60%) scale(.8);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,.16); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.35);
+  display: grid; place-items: center; color: #fff;
+  opacity: 0; transition: opacity .18s, transform .18s;
+}
+.resume-card:hover .play { opacity: 1; transform: translate(-50%,-60%) scale(1); }
+.resume-card .meta { position: absolute; left: 13px; right: 13px; bottom: 11px; }
+.resume-card .meta b { color: #fff; font-size: 13.5px; display: block; }
+.resume-card .meta span { color: rgba(255,255,255,.75); font-size: 11.5px; }
+.resume-card .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.18); }
+.resume-card .prog i { display: block; height: 100%; background: var(--accent); box-shadow: 0 0 8px rgba(57,135,229,.8); }
+
+.poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 18px 16px; }
+.poster { cursor: pointer; }
+.poster .art {
+  aspect-ratio: 2/3; border-radius: 10px; overflow: hidden; position: relative;
+  border: 1px solid var(--hairline);
+  transition: transform .2s cubic-bezier(.2,.8,.3,1.1), border-color .2s, box-shadow .2s;
+}
+.poster:hover .art {
+  transform: translateY(-5px) scale(1.015);
+  border-color: rgba(255,255,255,.32);
+  box-shadow: 0 16px 36px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06);
+}
+.poster .art .hover-meta {
+  position: absolute; inset: auto 0 0 0; padding: 26px 10px 9px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.92));
+  opacity: 0; transition: opacity .18s ease;
+}
+.poster:hover .hover-meta { opacity: 1; }
+.poster .hover-meta b { color: #fff; font-size: 12px; display: block; line-height: 1.3; }
+.poster .hover-meta span { color: rgba(255,255,255,.7); font-size: 11px; }
+.poster .p-title { margin-top: 9px; font-size: 12.5px; color: var(--ink-2); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poster:hover .p-title { color: var(--ink); }
+.poster .p-sub { font-size: 11px; color: var(--ink-3); }
+.poster .ep-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(0,0,0,.66); backdrop-filter: blur(5px);
+  border: 1px solid rgba(255,255,255,.14);
+  color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 2px 7px;
+}
+.poster.scanning .art { background: var(--surface-2); }
+.poster.scanning .art::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(120,170,255,.09) 50%, transparent 60%);
+  animation: shimmer 1.8s infinite;
+}
+@keyframes shimmer { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+.poster.scanning .scan-tag { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.poster.scanning .scan-tag span { font-size: 11px; color: var(--ink-3); display: block; margin-top: 8px; }
+
+.art-g1 { background: linear-gradient(160deg, #2b4a7a, #6ea8c9 60%, #d8e8d8); }
+.art-g2 { background: linear-gradient(200deg, #7a2b3f, #c96e8a 55%, #f0d8c0); }
+.art-g3 { background: linear-gradient(150deg, #1d3557, #457b9d 50%, #a8dadc); }
+.art-g4 { background: linear-gradient(170deg, #3d2645, #832161 60%, #da4167); }
+.art-g5 { background: linear-gradient(155deg, #14342b, #60935d 65%, #e0d68a); }
+.art-g6 { background: linear-gradient(165deg, #2f2440, #5c5470 55%, #b6a6ca); }
+.art-g7 { background: linear-gradient(145deg, #4a2c2a, #a85751 60%, #f4e8c1); }
+
+/* ========== Agent 控制台 ========== */
+.console { display: grid; grid-template-columns: 300px 1fr 330px; gap: 16px; align-items: start; }
+.panel-title { font-size: 13px; font-weight: 650; color: var(--ink); padding: 13px 15px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; gap: 8px; }
+.panel-title .count { margin-left: auto; font-size: 11px; color: var(--ink-3); font-weight: 500; }
+.task-row { padding: 11px 15px; border-bottom: 1px solid var(--hairline); cursor: pointer; }
+.task-row:last-child { border-bottom: 0; }
+.task-row:hover { background: var(--surface-2); }
+.task-row.sel { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+.task-row .f { font: 12px var(--mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.task-row .m { display: flex; gap: 7px; align-items: center; font-size: 11px; color: var(--ink-3); }
+.tier { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--hairline); color: var(--ink-3); }
+.tier.l1 { color: #9cc4f2; } .tier.l2 { color: #d8b1f0; }
+
+.timeline { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow-y: auto; }
+.tl-round { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 2px; }
+.tl-round::before, .tl-round::after { content: ""; height: 1px; background: var(--hairline); flex: 1; }
+.tool-card { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 13px; }
+.tool-card .head { display: flex; align-items: center; gap: 9px; }
+.tool-card .tname { font: 600 12.5px var(--mono); color: var(--ink); }
+.tool-card .targs { font: 11.5px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.tool-card .dur { font-size: 11px; color: var(--ink-3); flex: none; }
+.tool-card .tout { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); font: 11.5px/1.6 var(--mono); color: var(--ink-2); }
+.tool-icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex: none; background: var(--accent-dim); color: #9cc4f2; font-size: 12px; }
+.tool-icon.running::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
+.msg-bubble { border-left: 2px solid var(--hairline); padding: 4px 13px; color: var(--ink-3); font-size: 12.5px; font-style: italic; }
+.approve-card { border-bottom: 1px solid var(--hairline); padding: 14px 15px; }
+.approve-card:last-child { border-bottom: 0; }
+.approve-card .ev { font: 11px var(--mono); color: var(--ink-3); margin-bottom: 10px; line-height: 1.5; word-break: break-all; }
+.approve-card .concl { display: flex; gap: 11px; margin-bottom: 11px; }
+.approve-card .mini-poster { width: 44px; aspect-ratio: 2/3; border-radius: 6px; flex: none; border: 1px solid var(--hairline); }
+.approve-card .concl b { color: var(--ink); font-size: 13px; display: block; margin-bottom: 2px; }
+.approve-card .concl .why { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; line-height: 1.45; }
+.approve-actions { display: flex; gap: 7px; }
+.kbd-hint { text-align: center; padding: 10px; font-size: 11px; color: var(--ink-3); border-top: 1px solid var(--hairline); }
+.kbd-hint kbd { font: 10.5px var(--mono); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 4px; margin: 0 2px; }
+
+/* ========== 下载 ========== */
+.dl-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dl-table th { text-align: left; font-size: 11px; color: var(--ink-3); font-weight: 600; padding: 11px 15px; border-bottom: 1px solid var(--hairline); text-transform: uppercase; letter-spacing: .05em; }
+.dl-table td { padding: 12px 15px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.dl-table tr:last-child td { border-bottom: 0; }
+.dl-table tr:hover td { background: var(--surface-2); }
+.dl-name { font: 12px var(--mono); color: var(--ink); max-width: 380px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-num { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.sub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.sub-card { display: flex; gap: 12px; padding: 13px; }
+.sub-card .mini-poster { width: 52px; aspect-ratio: 2/3; border-radius: 7px; flex: none; border: 1px solid var(--hairline); }
+.sub-card b { color: var(--ink); font-size: 13px; display: block; margin-bottom: 3px; }
+.sub-card .sub-meta { font-size: 11px; color: var(--ink-3); line-height: 1.6; }
+.switch { margin-left: auto; width: 34px; height: 20px; border-radius: 999px; background: var(--accent); position: relative; flex: none; cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+.switch.off { background: var(--surface-2); border: 1px solid var(--hairline); }
+.switch.off::after { right: auto; left: 2px; background: var(--ink-3); }
+.legend { display: flex; gap: 15px; font-size: 11.5px; color: var(--ink-2); }
+.legend .key { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 5px; border-radius: 1px; }
+
+/* ========== 管家（Steward）========== */
+.steward-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; max-width: 1150px; }
+.chat-panel { display: flex; flex-direction: column; height: calc(100vh - 220px); min-height: 540px; }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
+.chat-day { text-align: center; font-size: 11px; color: var(--ink-3); }
+.msg { display: flex; gap: 11px; max-width: 92%; }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg .m-avatar { width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center; font-size: 13px; }
+.msg.steward .m-avatar {
+  background: linear-gradient(135deg, #2a78d6, #6da7ec); color: #fff; font-weight: 800;
+  box-shadow: 0 0 14px rgba(57,135,229,.35);
+}
+.msg.user .m-avatar { background: var(--surface-3); color: var(--ink); font-weight: 600; }
+.msg .m-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.msg .m-text { padding: 10px 14px; border-radius: 13px; font-size: 13.5px; line-height: 1.6; }
+.msg.steward .m-text { background: var(--surface); border: 1px solid var(--hairline); color: var(--ink-2); border-top-left-radius: 5px; }
+.msg.user .m-text { background: var(--accent); color: #fff; border-top-right-radius: 5px; box-shadow: 0 2px 14px rgba(57,135,229,.3); }
+.msg .m-text b { color: var(--ink); font-weight: 650; }
+.msg.user .m-text b { color: #fff; }
+
+/* 对话内富卡片 */
+.chat-tool { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 9px; font: 11.5px var(--mono); color: var(--ink-3); }
+.chat-tool .tname { color: var(--ink-2); font-weight: 600; }
+.chat-tool .ok { color: #7fd97f; margin-left: auto; font-size: 11px; }
+.item-card {
+  display: flex; gap: 12px; padding: 11px; border-radius: 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--hairline);
+  transition: border-color .15s;
+}
+.item-card:hover { border-color: var(--hairline-2); }
+.item-card .mini-poster { width: 48px; aspect-ratio: 2/3; border-radius: 7px; flex: none; border: 1px solid var(--hairline); }
+.item-card b { color: var(--ink); font-size: 13px; display: block; }
+.item-card .ic-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+.plan-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+.plan-card .p-head { padding: 10px 14px; border-bottom: 1px solid var(--hairline); font-size: 12.5px; font-weight: 650; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.plan-card .p-rows { padding: 6px 0; }
+.plan-card .p-row { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 4px 14px; font: 11.5px var(--mono); }
+.plan-card .p-row .op { color: var(--warning); font-weight: 700; }
+.plan-card .p-row .from { color: var(--ink-3); text-decoration: line-through; }
+.plan-card .p-row .to { color: #7fd97f; }
+.plan-card .p-foot { padding: 10px 14px; border-top: 1px solid var(--hairline); display: flex; gap: 8px; align-items: center; }
+.plan-card .p-foot .note { font-size: 11px; color: var(--ink-3); margin-left: auto; }
+
+.chat-input-wrap { padding: 14px 18px; border-top: 1px solid var(--hairline); }
+.chat-suggest { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.chat-suggest .sug {
+  font-size: 12px; color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 13px; cursor: pointer;
+}
+.chat-suggest .sug:hover { border-color: var(--accent); color: var(--ink); }
+.chat-input {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-2); border: 1px solid var(--hairline-2);
+  border-radius: 13px; padding: 11px 15px;
+  box-shadow: 0 0 0 4px rgba(57,135,229,.06);
+}
+.chat-input input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font-size: 13.5px; font-family: inherit; }
+.chat-input input::placeholder { color: var(--ink-3); }
+.send-btn { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; color: #fff; cursor: pointer; flex: none; box-shadow: 0 2px 10px rgba(57,135,229,.4); }
+
+/* 管家报告侧栏 */
+.report-card { padding: 0; }
+.report-item { padding: 12px 15px; border-bottom: 1px solid var(--hairline); font-size: 12.5px; line-height: 1.55; }
+.report-item:last-child { border-bottom: 0; }
+.report-item .r-title { display: flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 600; margin-bottom: 3px; }
+.report-item .r-body { color: var(--ink-3); font-size: 12px; }
+.report-item .r-act { margin-top: 8px; }
+
+/* 浮动管家按钮 */
+.steward-fab {
+  position: fixed; right: 26px; bottom: 26px; z-index: 50;
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(135deg, #2a78d6, #5598e7);
+  color: #fff; font-weight: 650; font-size: 13px;
+  border-radius: 999px; padding: 11px 19px 11px 14px; cursor: pointer;
+  box-shadow: 0 6px 28px rgba(57,135,229,.45), inset 0 1px 0 rgba(255,255,255,.3);
+  transition: transform .15s;
+}
+.steward-fab:hover { transform: translateY(-2px); }
+.steward-fab kbd { font: 10.5px var(--mono); background: rgba(255,255,255,.18); border-radius: 5px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ 侧边栏 ============ -->
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">n</div>
+      <div><b>nipaserver</b><span>agentic media server</span></div>
+    </div>
+    <div class="nav-item" data-v="library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="9" rx="1.5"/><rect x="14" y="17" width="7" height="3" rx="1"/></svg>
+      媒体库
+    </div>
+    <div class="nav-item" data-v="steward">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a7 7 0 017 7v1.5a3.5 3.5 0 01-3.5 3.5h-7A3.5 3.5 0 015 11.5V10a7 7 0 017-7z"/><path d="M8 21c1-1.5 2.5-2 4-2s3 .5 4 2"/><circle cx="9.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="10" r="1" fill="currentColor" stroke="none"/></svg>
+      管家
+      <span class="n-badge">2</span>
+    </div>
+    <div class="nav-item" data-v="console">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+      Agent 控制台
+    </div>
+    <div class="nav-item" data-v="downloads">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>
+      下载
+    </div>
+    <div class="nav-sec">系统</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      日志
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      设置
+    </div>
+    <div class="nav-foot"><span class="dot"></span>v0.1.0 · 运行 3 天</div>
+  </nav>
+
+  <div class="main">
+    <!-- ============ 顶栏 ============ -->
+    <div class="topbar">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        搜索条目、文件、设置…
+        <kbd>⌘K</kbd>
+      </div>
+      <div style="flex:1"></div>
+      <div class="scan-pill"><span class="pulse"></span>扫描中 · 动漫库 128/512 · AI 队列 6</div>
+      <div class="bell">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <span class="b-dot"></span>
+      </div>
+      <div class="avatar">S</div>
+    </div>
+
+    <!-- ============ 视图 1：媒体库 ============ -->
+    <section class="view active" id="v-library">
+      <!-- Hero -->
+      <div class="hero">
+        <div class="h-art"></div>
+        <div class="h-meta">
+          <div class="h-tag">
+            <span class="badge acc"><span class="bdot"></span>追番中</span>
+            <span class="badge">TV · 2026</span>
+            <span class="badge">弹幕已关联</span>
+          </div>
+          <div class="h-title">葬送的芙莉莲 第二季</div>
+          <div class="h-sub">魔法使いフリーレンの、その後の物语——千年之旅的第二章。SweetSub · 已收 8 集 · 每周五更新</div>
+          <div class="h-actions">
+            <button class="btn btn-primary">▶ 继续观看 · 第 8 话</button>
+            <span class="h-prog"><span class="meter"><i style="width:62%"></i></span>8 / 13</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chip-row">
+        <div class="chip on">全部</div>
+        <div class="chip">动漫</div>
+        <div class="chip">电影</div>
+        <div class="chip">剧集</div>
+        <div style="flex:1"></div>
+        <div class="chip">最新入库 ▾</div>
+      </div>
+
+      <div class="sec-title">继续观看</div>
+      <div class="shelf">
+        <div class="resume-card"><div class="art art-g1"></div><div class="shade"></div>
+          <div class="play">▶</div>
+          <div class="meta"><b>葬送的芙莉莲 · 第 18 话</b><span>剩余 12 分钟</span></div>
+          <div class="prog"><i style="width:52%"></i></div>
+        </div>
+        <div class="resume-card"><div class="art art-g4"></div><div class="shade"></div>
+          <div class="play">▶</div>
+          <div class="meta"><b>败犬女主太多了！ · 第 5 话</b><span>剩余 8 分钟</span></div>
+          <div class="prog"><i style="width:67%"></i></div>
+        </div>
+        <div class="resume-card"><div class="art art-g7"></div><div class="shade"></div>
+          <div class="play">▶</div>
+          <div class="meta"><b>蜘蛛侠：纵横宇宙</b><span>剩余 54 分钟</span></div>
+          <div class="prog"><i style="width:38%"></i></div>
+        </div>
+      </div>
+
+      <div class="sec-title">最新入库<span class="more">查看全部 →</span></div>
+      <div class="poster-grid">
+        <div class="poster">
+          <div class="art art-g1"><span class="ep-badge">28 集</span>
+            <div class="hover-meta"><b>葬送的芙莉莲</b><span>2023 · TV</span></div></div>
+          <div class="p-title">葬送的芙莉莲</div><div class="p-sub">2023 · 已看 18/28</div>
+        </div>
+        <div class="poster">
+          <div class="art art-g4"><span class="ep-badge">12 集</span>
+            <div class="hover-meta"><b>败犬女主太多了！</b><span>2024 · TV</span></div></div>
+          <div class="p-title">败犬女主太多了！</div><div class="p-sub">2024 · 已看 5/12</div>
+        </div>
+        <div class="poster">
+          <div class="art art-g7">
+            <div class="hover-meta"><b>蜘蛛侠：纵横宇宙</b><span>2023 · 电影</span></div></div>
+          <div class="p-title">蜘蛛侠：纵横宇宙</div><div class="p-sub">2023 · 4K HDR</div>
+        </div>
+        <div class="poster">
+          <div class="art art-g3"><span class="ep-badge">24 集</span>
+            <div class="hover-meta"><b>此时此刻的我</b><span>2024 · TV</span></div></div>
+          <div class="p-title">此时此刻的我</div><div class="p-sub">2024</div>
+        </div>
+        <div class="poster">
+          <div class="art art-g5"><span class="ep-badge">13 集</span>
+            <div class="hover-meta"><b>芙莉莲 S2</b><span>2026 · TV</span></div></div>
+          <div class="p-title">葬送的芙莉莲 第二季</div><div class="p-sub">2026 · 追番中</div>
+        </div>
+        <div class="poster">
+          <div class="art art-g6"><span class="ep-badge">11 集</span>
+            <div class="hover-meta"><b>冰海战记</b><span>2019 · TV</span></div></div>
+          <div class="p-title">冰海战记</div><div class="p-sub">2019</div>
+        </div>
+        <div class="poster scanning">
+          <div class="art">
+            <div class="scan-tag">
+              <div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#898781" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+                <span>AI 识别中…</span>
+              </div>
+            </div>
+          </div>
+          <div class="p-title" style="color:var(--ink-3)">MyGO_S01E03.mkv</div>
+          <div class="p-sub">L2 · Round 3</div>
+        </div>
+        <div class="poster scanning">
+          <div class="art">
+            <div class="scan-tag">
+              <div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#898781" stroke-width="1.6"><path d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>队列中</span>
+              </div>
+            </div>
+          </div>
+          <div class="p-title" style="color:var(--ink-3)">[SubsPlease] Frieren S2 - 07.mkv</div>
+          <div class="p-sub">等待 hash 匹配</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 视图 2：管家 ============ -->
+    <section class="view" id="v-steward">
+      <div class="view-title">管家</div>
+      <div class="view-sub">你的私人媒体管理员 — 说出你的需求，或让它汇报家里的情况</div>
+
+      <div class="steward-layout">
+        <!-- 对话面板 -->
+        <div class="card chat-panel">
+          <div class="chat-scroll">
+            <div class="chat-day">今天 21:47</div>
+
+            <div class="msg user">
+              <div class="m-avatar">S</div>
+              <div class="m-body"><div class="m-text">下载目录里那个 newanime_ep12 到底是什么？为什么一直待确认</div></div>
+            </div>
+
+            <div class="msg steward">
+              <div class="m-avatar">n</div>
+              <div class="m-body">
+                <div class="chat-tool">
+                  <span>⌕</span><span class="tname">get_scrape_task</span> {"file": "newanime_ep12_final.mp4"}
+                  <span class="ok">✓ 214ms</span>
+                </div>
+                <div class="m-text">
+                  这个文件的识别置信度只有 <b>low</b>，所以我把它放进了待确认队列而不是直接入库。<br><br>
+                  识别过程：文件名没有任何有效信息（<span style="font-family:var(--mono);font-size:12px">newanime_ep12</span>），我从内嵌字幕里找到了角色名"岩永琴子"，据此推断是<b>《虚构推理 第二季》第 12 集</b>——但只有这一条证据，没有 hash 命中、没有 format tags 佐证，我不敢直接写库。
+                </div>
+                <div class="item-card">
+                  <div class="mini-poster art-g6"></div>
+                  <div>
+                    <b>虚构推理 Season 2 · E12</b>
+                    <div class="ic-sub">2023 · TMDB 94664 · Bangumi 328609<br>依据：字幕角色名 · 集数来自文件名</div>
+                  </div>
+                  <span class="badge serious" style="align-self:center"><span class="bdot"></span>low</span>
+                </div>
+                <div class="m-text">要我按这个结论入库吗？还是你知道它其实是别的？</div>
+              </div>
+            </div>
+
+            <div class="msg user">
+              <div class="m-avatar">S</div>
+              <div class="m-body"><div class="m-text">对的就是虚构推理，确认吧。另外帮我把下载目录里散的文件都整理进库</div></div>
+            </div>
+
+            <div class="msg steward">
+              <div class="m-avatar">n</div>
+              <div class="m-body">
+                <div class="chat-tool">
+                  <span>✓</span><span class="tname">confirm_pending</span> {"task_id": 47, "item": "虚构推理 S2E12"}
+                  <span class="ok">✓ 已入库</span>
+                </div>
+                <div class="chat-tool">
+                  <span>⌕</span><span class="tname">propose_organize_plan</span> {"dir": "downloads/"}
+                  <span class="ok">✓ 3 项</span>
+                </div>
+                <div class="m-text">已确认入库 ✓。下载目录扫了一遍，有 3 个已识别的散文件可以归位——<b>这是整理计划，确认后我才会动文件</b>：</div>
+                <div class="plan-card">
+                  <div class="p-head">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h5l2 3h11v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7z"/><path d="M3 7V5a1 1 0 011-1h4l2 2"/></svg>
+                    整理计划 · 移动并重命名 3 个文件（硬链接模式，保种）
+                  </div>
+                  <div class="p-rows">
+                    <div class="p-row"><span class="op">→</span><span><span class="from">downloads/newanime_ep12_final.mp4</span><br><span class="to">动漫/虚构推理/Season 02/虚构推理 S02E12.mp4</span></span></div>
+                    <div class="p-row"><span class="op">→</span><span><span class="from">downloads/MakeIne.S01E05.1080p.WEB-DL.mkv</span><br><span class="to">动漫/败犬女主太多了！/Season 01/败犬女主太多了！ S01E05.mkv</span></span></div>
+                    <div class="p-row"><span class="op">→</span><span><span class="from">downloads/Kimi.no.Na.wa.2016.2160p.mkv</span><br><span class="to">电影/你的名字。 (2016)/你的名字。 2160p.mkv</span></span></div>
+                  </div>
+                  <div class="p-foot">
+                    <button class="btn btn-primary btn-sm">执行整理</button>
+                    <button class="btn btn-ghost btn-sm">调整</button>
+                    <span class="note">需要你的确认 · 可逆（保留 30 天回滚）</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-wrap">
+            <div class="chat-suggest">
+              <span class="sug">最近有什么没看完的？</span>
+              <span class="sug">这季有什么新番值得追</span>
+              <span class="sug">检查库里缺集</span>
+              <span class="sug">今天识别了多少</span>
+            </div>
+            <div class="chat-input">
+              <input placeholder="跟管家说点什么… 订阅、识别、整理、找片子都行">
+              <div class="send-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 管家报告侧栏 -->
+        <div>
+          <div class="card report-card">
+            <div class="panel-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+              管家报告
+              <span class="count">今晨 08:00 巡检</span>
+            </div>
+            <div class="report-item">
+              <div class="r-title"><span class="badge warn" style="padding:1px 7px"><span class="bdot"></span>缺集</span></div>
+              <div class="r-body">《冰海战记》缺第 7 集——S01E01–E11 连续，唯独 E07 不在库中。已在蜜柑找到 LoliHouse 版本。</div>
+              <div class="r-act"><button class="btn btn-ghost btn-sm">让管家补齐 →</button></div>
+            </div>
+            <div class="report-item">
+              <div class="r-title"><span class="badge acc" style="padding:1px 7px"><span class="bdot"></span>订阅</span></div>
+              <div class="r-body">《芙莉莲 第二季》第 8 集今晨已下载并入库；SweetSub 发布比上周晚了 6 小时。</div>
+            </div>
+            <div class="report-item">
+              <div class="r-title"><span class="badge serious" style="padding:1px 7px"><span class="bdot"></span>复核建议</span></div>
+              <div class="r-body">上月入库的 3 个 low 置信度条目一直没人看——可能识别有误，建议我重新核对一次（预计消耗 ~40k tokens）。</div>
+              <div class="r-act"><button class="btn btn-ghost btn-sm">去核对</button></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px; padding:13px 15px">
+            <div style="font-size:12px;color:var(--ink-3);margin-bottom:8px">管家状态</div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span>模型</span><span style="color:var(--ink);font-family:var(--mono);font-size:11.5px">claude-sonnet-5</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span>今日对话消耗</span><span style="color:var(--ink)">86k tokens</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>下次巡检</span><span style="color:var(--ink)">明晨 08:00</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 视图 3：Agent 控制台 ============ -->
+    <section class="view" id="v-console">
+      <div class="view-title">Agent 控制台</div>
+      <div class="view-sub">识别管线的每一步都可追溯 — 这是管家手下工人们的车间</div>
+
+      <div class="tiles">
+        <div class="card tile">
+          <div class="t-label">今日已识别</div>
+          <div class="t-row">
+            <div class="t-value">142</div>
+            <svg class="spark" viewBox="0 0 76 30">
+              <polyline points="0,26 7,24 14,25 21,20 28,21 35,16 42,17 49,12 56,13 63,8 70,9 76,4" fill="none" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="76" cy="4" r="3.5" fill="#3987e5" stroke="#1a1a19" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="card tile">
+          <div class="t-label">识别成功率</div>
+          <div class="t-row">
+            <div class="t-value">96.5%</div>
+            <div class="t-delta up">↑ 2.1% vs 昨日</div>
+          </div>
+        </div>
+        <div class="card tile">
+          <div class="t-label">待确认</div>
+          <div class="t-row">
+            <div class="t-value">7</div>
+            <span class="badge warn"><span class="bdot"></span>需要你</span>
+          </div>
+        </div>
+        <div class="card tile">
+          <div class="t-label">今日 token 消耗</div>
+          <div class="t-row">
+            <div class="t-value">1.2M</div>
+            <div class="t-delta" style="color:var(--ink-3)">≈ $0.31</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="console">
+        <div class="card">
+          <div class="panel-title">任务队列<span class="count">6 运行 · 12 排队</span></div>
+          <div class="task-row">
+            <div class="f">[SweetSub] 芙莉莲 S2 - 07.mkv</div>
+            <div class="m"><span class="tier l1">L1</span><span class="badge good"><span class="bdot"></span>hash 命中</span><span>0.3s</span></div>
+          </div>
+          <div class="task-row sel">
+            <div class="f">MyGO_S01E03.mkv</div>
+            <div class="m"><span class="tier l2">L2</span><span class="badge acc"><span class="bdot"></span>运行中</span><span>Round 3/16</span></div>
+          </div>
+          <div class="task-row">
+            <div class="f">Kimi.no.Na.wa.2016.2160p.mkv</div>
+            <div class="m"><span class="tier l2">L2</span><span class="badge warn"><span class="bdot"></span>待确认</span><span>medium</span></div>
+          </div>
+          <div class="task-row">
+            <div class="f">newanime_ep12_final.mp4</div>
+            <div class="m"><span class="tier l2">L2</span><span class="badge warn"><span class="bdot"></span>待确认</span><span>low</span></div>
+          </div>
+          <div class="task-row">
+            <div class="f">[VCB-S] Hibike! S3 [01-13].mkv</div>
+            <div class="m"><span class="tier l2">L2</span><span style="color:var(--ink-3)">队列中</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="panel-title">
+            <span style="font-family:var(--mono);font-size:12px">MyGO_S01E03.mkv</span>
+            <span class="badge acc"><span class="bdot"></span>live</span>
+            <span class="count">deepseek-v4-flash · 6.2k tokens</span>
+          </div>
+          <div class="timeline">
+            <div class="tl-round">Round 1</div>
+            <div class="msg-bubble">文件名信息量低，先从字幕内容入手识别作品。</div>
+            <div class="tool-card">
+              <div class="head">
+                <div class="tool-icon">⌕</div>
+                <span class="tname">search_bangumi</span>
+                <span class="targs">{"keyword": "MyGO"}</span>
+                <span class="dur">812ms</span>
+              </div>
+              <div class="tout">→ 3 candidates: BanG Dream! It's MyGO!!!!! (id 404804, 2023-06-29)…</div>
+            </div>
+            <div class="tl-round">Round 2</div>
+            <div class="tool-card">
+              <div class="head">
+                <div class="tool-icon">⌕</div>
+                <span class="tname">get_bangumi_subject</span>
+                <span class="targs">{"id": 404804, "with_episodes": true}</span>
+                <span class="dur">1.3s</span>
+              </div>
+              <div class="tout">→ 13 episodes; ep3 "沢山のセイシュン" air 2023-07-13</div>
+            </div>
+            <div class="tl-round">Round 3</div>
+            <div class="tool-card">
+              <div class="head">
+                <div class="tool-icon running"></div>
+                <span class="tname">search_tmdb</span>
+                <span class="targs">{"query": "BanG Dream! It's MyGO!!!!!", "year": 2023}</span>
+                <span class="dur">running</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="panel-title">待确认<span class="count">7 项</span></div>
+          <div class="approve-card">
+            <div class="ev">Kimi.no.Na.wa.2016.2160p.mkv<br>2h02m · HEVC 4K · 无字幕 · 目录内单文件</div>
+            <div class="concl">
+              <div class="mini-poster art-g2"></div>
+              <div>
+                <b>你的名字。</b>
+                <span class="badge warn"><span class="bdot"></span>medium</span>
+                <div class="why">文件名罗马音与 2016 年新海诚电影匹配；时长一致；但无字幕/tags 佐证。</div>
+              </div>
+            </div>
+            <div class="approve-actions">
+              <button class="btn btn-primary btn-sm">✓ 确认</button>
+              <button class="btn btn-ghost btn-sm">✎ 改正</button>
+              <button class="btn btn-ghost btn-sm">⏭</button>
+            </div>
+          </div>
+          <div class="approve-card">
+            <div class="ev">newanime_ep12_final.mp4<br>24m10s · H264 1080p · 简中内嵌字幕</div>
+            <div class="concl">
+              <div class="mini-poster art-g6"></div>
+              <div>
+                <b>虚构推理 S2 · E12</b>
+                <span class="badge serious"><span class="bdot"></span>low</span>
+                <div class="why">仅凭字幕角色名"岩永琴子"推断；集数来自文件名 ep12；建议人工核对。</div>
+              </div>
+            </div>
+            <div class="approve-actions">
+              <button class="btn btn-primary btn-sm">✓ 确认</button>
+              <button class="btn btn-ghost btn-sm">✎ 改正</button>
+              <button class="btn btn-ghost btn-sm">⏭</button>
+            </div>
+          </div>
+          <div class="kbd-hint"><kbd>J</kbd><kbd>K</kbd> 切换 · <kbd>Enter</kbd> 确认 · <kbd>E</kbd> 改正</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 视图 4：下载 ============ -->
+    <section class="view" id="v-downloads">
+      <div class="view-title">下载</div>
+      <div class="view-sub">内置 BT 引擎 · 完成后自动进入刮削管线</div>
+
+      <div class="tiles" style="grid-template-columns: repeat(3, 1fr)">
+        <div class="card tile">
+          <div class="t-label">实时速率</div>
+          <div class="t-row">
+            <div class="t-value" style="font-size:22px">12.4 <span style="font-size:13px;color:var(--ink-3)">MB/s</span></div>
+            <svg class="spark" viewBox="0 0 76 30">
+              <polyline points="0,22 10,18 20,20 30,10 40,14 50,6 60,12 70,8 76,10" fill="none" stroke="#3987e5" stroke-width="2" stroke-linecap="round"/>
+              <polyline points="0,27 10,26 20,27 30,24 40,26 50,23 60,25 70,24 76,25" fill="none" stroke="#199e70" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="legend" style="margin-top:8px">
+            <span><span class="key" style="background:#3987e5"></span>下行</span>
+            <span><span class="key" style="background:#199e70"></span>上行 1.1 MB/s</span>
+          </div>
+        </div>
+        <div class="card tile">
+          <div class="t-label">活跃任务</div>
+          <div class="t-row"><div class="t-value">3</div><div class="t-delta" style="color:var(--ink-3)">2 做种中</div></div>
+        </div>
+        <div class="card tile">
+          <div class="t-label">RSS 订阅</div>
+          <div class="t-row"><div class="t-value">5</div><div class="t-delta" style="color:var(--ink-3)">30 分钟前检查</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:22px">
+        <table class="dl-table">
+          <thead><tr><th style="width:42%">名称</th><th style="width:24%">进度</th><th>速度</th><th>做种</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="dl-name">[SweetSub] 葬送的芙莉莲 S2 - 08 [1080P][AVC 8bit].mkv</div></td>
+              <td><div class="meter"><i style="width:72%"></i></div><div style="font-size:11px;color:var(--ink-3);margin-top:4px" class="dl-num">72% · 402 MB / 558 MB</div></td>
+              <td class="dl-num">8.2 MB/s</td><td class="dl-num">24</td>
+              <td><span class="badge acc"><span class="bdot"></span>下载中</span></td>
+            </tr>
+            <tr>
+              <td><div class="dl-name">[VCB-Studio] BanG Dream! It's MyGO!!!!! [01-13][Ma10p_1080p]</div></td>
+              <td><div class="meter"><i style="width:31%"></i></div><div style="font-size:11px;color:var(--ink-3);margin-top:4px" class="dl-num">31% · 4.1 GB / 13.2 GB</div></td>
+              <td class="dl-num">4.2 MB/s</td><td class="dl-num">11</td>
+              <td><span class="badge acc"><span class="bdot"></span>下载中</span></td>
+            </tr>
+            <tr>
+              <td><div class="dl-name">[SubsPlease] Make Heroine ga Oosugiru! - 12 (1080p).mkv</div></td>
+              <td><div class="meter m-good"><i style="width:100%"></i></div><div style="font-size:11px;color:var(--ink-3);margin-top:4px">完成 · 已自动入库 ✓</div></td>
+              <td class="dl-num">—</td><td class="dl-num">36</td>
+              <td><span class="badge good"><span class="bdot"></span>做种中</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec-title">RSS 订阅（Mikan）</div>
+      <div class="sub-grid">
+        <div class="card sub-card">
+          <div class="mini-poster art-g5"></div>
+          <div style="min-width:0">
+            <b>葬送的芙莉莲 第二季</b>
+            <div class="sub-meta">SweetSub · 1080p<br>上次抓取 12 分钟前 · 已收 8 集</div>
+          </div>
+          <div class="switch"></div>
+        </div>
+        <div class="card sub-card">
+          <div class="mini-poster art-g3"></div>
+          <div style="min-width:0">
+            <b>此时此刻的我</b>
+            <div class="sub-meta">桜都字幕组 · 1080p<br>上次抓取 12 分钟前 · 已收 4 集</div>
+          </div>
+          <div class="switch"></div>
+        </div>
+        <div class="card sub-card">
+          <div class="mini-poster art-g6"></div>
+          <div style="min-width:0">
+            <b>冰海战记 FINAL</b>
+            <div class="sub-meta">LoliHouse · 1080p<br>季度未开播 · 待命</div>
+          </div>
+          <div class="switch off"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- 浮动管家入口（管家页外的全局召唤） -->
+<div class="steward-fab" id="fab">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a7 7 0 017 7v1.5a3.5 3.5 0 01-3.5 3.5h-7A3.5 3.5 0 015 11.5V10a7 7 0 017-7z"/><path d="M8 21c1-1.5 2.5-2 4-2s3 .5 4 2"/></svg>
+  召唤管家
+  <kbd>⌘J</kbd>
+</div>
+
+<script>
+document.querySelectorAll('.nav-item[data-v]').forEach(item => {
+  item.addEventListener('click', () => switchView(item.dataset.v));
+});
+function switchView(v) {
+  document.querySelectorAll('.nav-item[data-v]').forEach(i => i.classList.toggle('active', i.dataset.v === v));
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('v-' + v).classList.add('active');
+  document.getElementById('fab').style.display = v === 'steward' ? 'none' : 'flex';
+}
+document.getElementById('fab').addEventListener('click', () => switchView('steward'));
+switchView('library');
+</script>
+</body>
+</html>

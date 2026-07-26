@@ -1,0 +1,72 @@
+# NipaServer workspace（开发文档 §3.1）
+#
+# 注意：
+# - nipa-agent 是同目录下的独立项目（另有人并行开发），后续经 path 依赖 ../nipa-agent 接入，
+#   因此不在 crates/ 下、且显式 exclude；
+# - reference/ 为 codex 参考源码（Apache-2.0，仅作设计参考），不入编译。
+
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+exclude = ["nipa-agent", "reference"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+# 内部 crates
+nipa-core = { path = "crates/nipa-core" }
+nipa-scanner = { path = "crates/nipa-scanner" }
+nipa-match = { path = "crates/nipa-match" }
+nipa-providers = { path = "crates/nipa-providers" }
+nipa-download = { path = "crates/nipa-download" }
+nipa-stream = { path = "crates/nipa-stream" }
+# 独立仓库（workspace exclude）：agent runtime，契约见 docs/03-agent接口契约.md
+nipa-agent = { path = "nipa-agent" }
+
+# 序列化与配置
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+
+# 错误处理
+thiserror = "2"
+anyhow = "1"
+
+# 日志（§11）
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# 异步运行时
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "signal",
+    "sync",
+    "time",
+] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+# Web/API（§2.3；仅 nipa-server 可用——回流 crates 不得依赖 axum/tower）
+axum = "0.8"
+tower-http = { version = "0.6", features = ["trace"] }
+
+# 数据库（§2.3/§9）
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "sqlite",
+    "migrate",
+] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# 文件扫描与指纹（§4.1；nipa-scanner）
+walkdir = "2"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"

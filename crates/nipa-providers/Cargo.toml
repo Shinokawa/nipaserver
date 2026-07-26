@@ -1,0 +1,28 @@
+# nipa-providers：TMDB / Bangumi 元数据客户端 + egress 层（节流 + TTL 缓存）+ agent 工具。
+#
+# 回流约束（§3.1）：不得依赖 axum/tower。
+
+[package]
+name = "nipa-providers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "tmdb / bangumi 元数据客户端 + egress 层（节流 + TTL 缓存 + agent 工具）"
+
+[dependencies]
+nipa-core = { workspace = true }
+# nipa-agent 是同目录下的独立项目（不在 workspace members 里），经根 workspace path 依赖接入。
+nipa-agent = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+wiremock = "0.6"

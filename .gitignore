@@ -1,0 +1,19 @@
+# Rust 构建产物
+target/
+
+# SQLite 数据库（含 WAL/SHM 伴随文件）
+*.db
+*.db-wal
+*.db-shm
+
+# 默认数据目录
+/data/
+
+# 本地配置（含 API key 等敏感项）
+nipaserver.toml
+
+# 外部参考源码（GPL/Apache 等，仅本地精读用，绝不入库）
+/reference/
+
+# 工作区 Cargo.lock（bin 项目通常入库，但 nipa-agent submodule 有自己的锁；保留主锁）
+.DS_Store

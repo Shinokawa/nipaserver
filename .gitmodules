@@ -1,0 +1,3 @@
+[submodule "nipa-agent"]
+	path = nipa-agent
+	url = https://github.com/Shinokawa/nipa-agent.git
