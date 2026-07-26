@@ -66,8 +66,7 @@ pub fn plan_scan(discovered: &[DiscoveredFile], known: &[KnownFile]) -> ScanPlan
     // BTreeMap：既做 rel_path 索引，又保证遍历顺序确定。
     let known_by_path: BTreeMap<&str, &KnownFile> =
         known.iter().map(|k| (k.rel_path.as_str(), k)).collect();
-    let mut seen_known: BTreeMap<&str, bool> =
-        known_by_path.keys().map(|&p| (p, false)).collect();
+    let mut seen_known: BTreeMap<&str, bool> = known_by_path.keys().map(|&p| (p, false)).collect();
 
     let mut plan = ScanPlan::default();
 
@@ -291,11 +290,17 @@ mod tests {
         let plan = plan_scan(&d, &k);
 
         assert_eq!(
-            plan.new_files.iter().map(|f| f.rel_path.as_str()).collect::<Vec<_>>(),
+            plan.new_files
+                .iter()
+                .map(|f| f.rel_path.as_str())
+                .collect::<Vec<_>>(),
             vec!["brand-new.mkv", "moved-to.mkv"]
         );
         assert_eq!(
-            plan.changed_files.iter().map(|f| f.rel_path.as_str()).collect::<Vec<_>>(),
+            plan.changed_files
+                .iter()
+                .map(|f| f.rel_path.as_str())
+                .collect::<Vec<_>>(),
             vec!["touched.mkv"]
         );
         assert_eq!(

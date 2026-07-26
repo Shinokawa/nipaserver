@@ -51,7 +51,8 @@ pub fn build_evidence(params: &EvidenceParams<'_>) -> String {
             out.push_str(text.trim_end());
             out.push('\n');
         }
-        _ => out.push_str("无可用字幕文本（无字幕流、图形字幕 PGS/VobSub 无文本可采、或抽取失败）。\n"),
+        _ => out
+            .push_str("无可用字幕文本（无字幕流、图形字幕 PGS/VobSub 无文本可采、或抽取失败）。\n"),
     }
 
     out.push_str(&format_siblings(params.siblings));

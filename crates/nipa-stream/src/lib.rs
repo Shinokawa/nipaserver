@@ -24,8 +24,8 @@ pub use extract::{default_sample_ranges, extract_subtitle_text};
 pub use hls::{HlsConfig, HlsManager, HlsSessionSpec, SegmentData};
 pub use locate::{FfmpegLocator, FfmpegPaths};
 pub use playback::{
-    ClientKind, DeviceProfile, MediaSource, PlayDecision, PlayMethod, TranscodeReason, decide_video,
-    normalize_container,
+    ClientKind, DeviceProfile, MediaSource, PlayDecision, PlayMethod, TranscodeReason,
+    decide_video, normalize_container,
 };
 pub use probe::{AudioInfo, MediaSummary, ProbeResult, SubtitleInfo, VideoInfo, probe};
 pub use tools::build_stream_tools;

@@ -8,9 +8,18 @@ target/
 
 # 默认数据目录
 /data/
+/media/
 
 # 本地配置（含 API key 等敏感项）
 nipaserver.toml
+.env
+.env.*
+!.env.example
+
+# 本地 Agent / 编辑器状态
+.claude/
+.idea/
+.vscode/
 
 # 外部参考源码（GPL/Apache 等，仅本地精读用，绝不入库）
 /reference/

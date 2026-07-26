@@ -9,7 +9,7 @@
 //! 下载失败时 302 回源 URL（优雅降级，不阻塞前端）。
 
 use axum::extract::{Path as AxumPath, Query, State};
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -32,21 +32,23 @@ pub async fn item_image(
     AxumPath((item_id, image_type)): AxumPath<(i64, String)>,
     Query(q): Query<ImageQuery>,
 ) -> Response {
-    if !matches!(image_type.as_str(), "primary" | "backdrop" | "thumb" | "logo" | "banner") {
+    if !matches!(
+        image_type.as_str(),
+        "primary" | "backdrop" | "thumb" | "logo" | "banner"
+    ) {
         return (StatusCode::BAD_REQUEST, "unknown image type").into_response();
     }
 
     // 源 URL：item_images 优先，快捷列兜底（primary=poster_path, backdrop=backdrop_path）
     let source: Option<String> = {
-        let from_table: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT url FROM item_images WHERE item_id = ? AND image_type = ?",
-        )
-        .bind(item_id)
-        .bind(&image_type)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+        let from_table: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT url FROM item_images WHERE item_id = ? AND image_type = ?")
+                .bind(item_id)
+                .bind(&image_type)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
         match from_table {
             Some((Some(url),)) => Some(url),
             _ => {
@@ -89,13 +91,19 @@ pub async fn item_image(
 
     // 缩放请求
     if let Some(w) = q.width {
-        let Some(&w) = ALLOWED_WIDTHS.iter().find(|&&a| a >= w).or(ALLOWED_WIDTHS.last())
+        let Some(&w) = ALLOWED_WIDTHS
+            .iter()
+            .find(|&&a| a >= w)
+            .or(ALLOWED_WIDTHS.last())
         else {
             return serve_file(&original).await;
         };
         let scaled = original.with_file_name(format!(
             "{}-w{w}.jpg",
-            original.file_stem().and_then(|s| s.to_str()).unwrap_or("img")
+            original
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("img")
         ));
         if !scaled.exists() {
             let orig = original.clone();
@@ -103,7 +111,9 @@ pub async fn item_image(
             let result = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
                 let img = image::open(&orig)?;
                 let resized = img.resize(w, u32::MAX, image::imageops::FilterType::Lanczos3);
-                resized.to_rgb8().save_with_format(&scaled_clone, image::ImageFormat::Jpeg)?;
+                resized
+                    .to_rgb8()
+                    .save_with_format(&scaled_clone, image::ImageFormat::Jpeg)?;
                 Ok(())
             })
             .await;
@@ -126,23 +136,14 @@ async fn find_cached(base: &std::path::Path) -> Option<PathBuf> {
     None
 }
 
-async fn download(
-    state: &AppState,
-    url: &str,
-    base: &std::path::Path,
-) -> anyhow::Result<PathBuf> {
+async fn download(state: &AppState, url: &str, base: &std::path::Path) -> anyhow::Result<PathBuf> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
         anyhow::bail!("not a remote url");
     }
     if let Some(dir) = base.parent() {
         tokio::fs::create_dir_all(dir).await?;
     }
-    let resp = state
-        .http
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?;
+    let resp = state.http.get(url).send().await?.error_for_status()?;
     let content_type = resp
         .headers()
         .get(header::CONTENT_TYPE)

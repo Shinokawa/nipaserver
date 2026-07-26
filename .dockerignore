@@ -1,0 +1,16 @@
+.git
+**/.git
+.github
+.claude
+.DS_Store
+target
+**/target
+data
+media
+reference
+webui/app/node_modules
+webui/app/dist
+nipaserver.toml
+*.db
+*.db-wal
+*.db-shm

@@ -3,8 +3,8 @@
 //! TODO(M1): 拆分"单写连接 + 读连接池"（§2.3），当前先用单池。
 
 use anyhow::Context;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use std::path::Path;
 
 /// 打开 data_dir 下的 nipa.db（WAL、外键开启）并执行迁移。

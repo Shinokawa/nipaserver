@@ -9,8 +9,8 @@
 #[path = "../src/userdata.rs"]
 mod userdata;
 
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 const USER: i64 = 1;
 
@@ -20,7 +20,10 @@ async fn setup_db() -> SqlitePool {
         .connect("sqlite::memory:")
         .await
         .expect("open in-memory sqlite");
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrations");
     pool
 }
 
@@ -164,8 +167,7 @@ async fn resume_excludes_played_and_zero_position() {
 async fn next_up_picks_first_unplayed_after_max_watched() {
     let db = setup_db().await;
     let lib = seed_library(&db, "anime").await;
-    let (series, eps) =
-        seed_series(&db, lib, "剧A", &[(1, 1), (1, 2), (1, 3)]).await;
+    let (series, eps) = seed_series(&db, lib, "剧A", &[(1, 1), (1, 2), (1, 3)]).await;
     // 看完 E1、E2 → next 应为 E3
     seed_watch(&db, eps[0], 0, true, 100).await;
     seed_watch(&db, eps[1], 0, true, 200).await;
@@ -308,7 +310,10 @@ async fn latest_groups_by_library_ordered_by_added_at() {
     assert_eq!(lib_a_rows[1].title.as_deref(), Some("新剧"));
     assert_eq!(lib_b_rows[0].title.as_deref(), Some("新电影"));
     assert_eq!(lib_b_rows[1].title.as_deref(), Some("老电影"));
-    assert!(rows.iter().all(|r| r.kind != "episode" && r.kind != "season"));
+    assert!(
+        rows.iter()
+            .all(|r| r.kind != "episode" && r.kind != "season")
+    );
 }
 
 #[tokio::test]

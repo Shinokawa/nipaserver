@@ -3,6 +3,10 @@ name = "nipa-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 description = "NipaServer 领域模型、配置、事件类型（EventMsg）"
 
 # 回流约束（开发文档 §3.1）：本 crate 会经 flutter_rust_bridge 回流 NipaPlay 客户端，

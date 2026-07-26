@@ -98,7 +98,10 @@ impl BangumiClient {
     }
 
     /// `GET /v0/episodes?subject_id=&type=0`（type 0=本篇；每话含 sort/ep/name/name_cn/airdate）。
-    pub async fn subject_episodes(&self, subject_id: i64) -> Result<serde_json::Value, ProviderError> {
+    pub async fn subject_episodes(
+        &self,
+        subject_id: i64,
+    ) -> Result<serde_json::Value, ProviderError> {
         let key = format!("bgm:subject_episodes:{subject_id}");
         if let Some(hit) = self.cache.get(&key).await {
             return Ok(hit);

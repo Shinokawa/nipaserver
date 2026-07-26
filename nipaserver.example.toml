@@ -1,0 +1,35 @@
+# NipaServer 示例配置。
+# 复制为 nipaserver.toml 后按需修改；该真实配置文件已被 Git 忽略。
+
+[server]
+# 本地开发默认只监听回环地址。可信局域网可改为 0.0.0.0，公网使用前必须加认证反代。
+bind = "127.0.0.1"
+port = 11810
+data_dir = "./data"
+
+[log]
+# tracing EnvFilter 语法；RUST_LOG 环境变量优先。
+filter = "info,nipa_server=debug"
+
+[model]
+# 留空表示禁用 AI 刮削与管家，其余确定性功能仍可使用。
+base_url = ""
+model = ""
+
+# 推荐把 key 放进环境变量 MODEL_API_KEY，不要写入本文件。
+api_key = ""
+api_key_env = "MODEL_API_KEY"
+
+# 0 使用程序默认值。
+max_rounds = 0
+max_total_tokens = 0
+
+[providers]
+# TMDB Read Access Token。留空时只启用无需凭证的 provider。
+tmdb_token = ""
+
+# Bangumi 要求可联系的 User-Agent。公开部署前建议改为项目地址或维护者联系方式。
+bangumi_user_agent = "AimesSoft/nipaserver/0.1 (https://github.com/Shinokawa/nipaserver)"
+
+# 启动时尝试获取弹弹play L1 签名凭证；失败会自动降级到 L2。
+dandanplay_l1 = true

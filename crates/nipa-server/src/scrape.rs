@@ -49,14 +49,7 @@ impl ScrapeService {
         }
         let (tx, rx) = mpsc::channel::<ScrapeRequest>(256);
         let cancel = CancellationToken::new();
-        tokio::spawn(worker(
-            model.clone(),
-            tools,
-            db,
-            events,
-            rx,
-            cancel.clone(),
-        ));
+        tokio::spawn(worker(model.clone(), tools, db, events, rx, cancel.clone()));
         Some(Self { tx, cancel })
     }
 
@@ -172,7 +165,10 @@ async fn run_one(
 ) -> anyhow::Result<()> {
     let task_id = req.task_id;
     set_task_state(db, task_id, "running", &model.model).await?;
-    let _ = events.send(EventMsg::ScrapeUpdate { task_id, state: "running".into() });
+    let _ = events.send(EventMsg::ScrapeUpdate {
+        task_id,
+        state: "running".into(),
+    });
 
     // agent 事件 → SSE 透传 + transcript 收集（信封 JSONL，契约 §4 不变量 4）。
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -218,7 +214,10 @@ async fn run_one(
         }
         Err(e) => {
             set_task_state(db, task_id, "failed", &model.model).await?;
-            let _ = events.send(EventMsg::ScrapeUpdate { task_id, state: "failed".into() });
+            let _ = events.send(EventMsg::ScrapeUpdate {
+                task_id,
+                state: "failed".into(),
+            });
             warn!(error = %e, "agent init failed (config error)");
             return Ok(());
         }
@@ -231,7 +230,11 @@ async fn run_one(
     let (state, result_json, confidence, usage) = match &outcome {
         TaskOutcome::Completed { result, usage, .. } => {
             let confidence = result["confidence"].as_str().unwrap_or("low").to_string();
-            let state = if confidence == "high" { "done" } else { "needs_review" };
+            let state = if confidence == "high" {
+                "done"
+            } else {
+                "needs_review"
+            };
             if state == "done" {
                 // 任务关联的文件与库（试刮任务无 file_id 时 library 取 0 占位）
                 let link: Option<(Option<i64>, Option<i64>)> = sqlx::query_as(
@@ -243,8 +246,7 @@ async fn run_one(
                 .await?;
                 let (file_id, library_id) = link.unwrap_or((None, None));
                 if let Err(e) =
-                    crate::ingest::ingest_result(db, library_id.unwrap_or(0), file_id, result)
-                        .await
+                    crate::ingest::ingest_result(db, library_id.unwrap_or(0), file_id, result).await
                 {
                     warn!(task_id, error = %e, "ingest failed; leaving task done without item link");
                 }
@@ -268,7 +270,10 @@ async fn run_one(
     .bind(task_id)
     .execute(db)
     .await?;
-    let _ = events.send(EventMsg::ScrapeUpdate { task_id, state: state.into() });
+    let _ = events.send(EventMsg::ScrapeUpdate {
+        task_id,
+        state: state.into(),
+    });
     info!(task_id, state, "scrape task finished");
     Ok(())
 }

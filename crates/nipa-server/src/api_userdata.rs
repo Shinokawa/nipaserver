@@ -27,8 +27,14 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/items/latest", get(items_latest))
         .route("/api/v1/shows/next-up", get(shows_next_up))
         .route("/api/v1/search", get(search))
-        .route("/api/v1/items/{id}/played", post(mark_played).delete(mark_unplayed))
-        .route("/api/v1/items/{id}/favorite", post(mark_favorite).delete(unmark_favorite))
+        .route(
+            "/api/v1/items/{id}/played",
+            post(mark_played).delete(mark_unplayed),
+        )
+        .route(
+            "/api/v1/items/{id}/favorite",
+            post(mark_favorite).delete(unmark_favorite),
+        )
 }
 
 // ===== 播放进度上报（§2 三端点合一） =====
@@ -68,7 +74,10 @@ async fn playback_progress(
             .await
             .map_err(internal)?;
     let Some((runtime_ms,)) = row else {
-        return Err((StatusCode::NOT_FOUND, format!("条目 {} 不存在", body.item_id)));
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("条目 {} 不存在", body.item_id),
+        ));
     };
 
     match body.event {
@@ -311,7 +320,9 @@ async fn search(
 
 /// LIKE 通配符转义（用户输入是数据不是模式）。
 fn like_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn internal(e: sqlx::Error) -> (StatusCode, String) {

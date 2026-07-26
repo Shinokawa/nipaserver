@@ -298,7 +298,9 @@ impl StewardService {
                  管家做出的承诺与执行过的操作、未完成的事项。丢弃工具输出细节与闲聊。\
                  若已有旧摘要，将新内容合并进去。直接输出摘要文本。",
             ),
-            ChatMessage::user(format!("[旧摘要]\n{prev_summary}\n\n[待压缩对话]\n{digest_input}")),
+            ChatMessage::user(format!(
+                "[旧摘要]\n{prev_summary}\n\n[待压缩对话]\n{digest_input}"
+            )),
         ];
         let cancel = CancellationToken::new();
         match client.chat(&self.model, &msgs, &[], &cancel, |_| {}).await {

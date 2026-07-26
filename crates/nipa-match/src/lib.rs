@@ -26,8 +26,8 @@ pub mod types;
 pub use auth::{DandanAuth, compute_signature};
 pub use client::{BATCH_LIMIT, DEFAULT_BASE_URL, DEFAULT_MIN_INTERVAL, DandanClient};
 pub use error::MatchError;
-pub use secret::{NIPA_APP_ID, decode_secret, fetch_app_secret};
 pub use hash::{DANDAN_HASH_SIZE, dandan_hash_bytes, dandan_hash_reader};
+pub use secret::{NIPA_APP_ID, decode_secret, fetch_app_secret};
 pub use types::{
     AnimeType, BatchItem, MatchMode, MatchOutcome, MatchRequest, MatchResponse, MatchResultV2,
     classify,

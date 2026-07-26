@@ -133,10 +133,7 @@ fn strip_srt_to_dialogue(raw: &[u8], max_lines: usize) -> String {
     let mut lines: Vec<&str> = Vec::new();
     for line in text.lines() {
         let line = line.trim().trim_start_matches('\u{feff}');
-        if line.is_empty()
-            || line.contains("-->")
-            || line.chars().all(|c| c.is_ascii_digit())
-        {
+        if line.is_empty() || line.contains("-->") || line.chars().all(|c| c.is_ascii_digit()) {
             continue;
         }
         if lines.last() == Some(&line) {
@@ -165,7 +162,10 @@ mod tests {
     fn strip_srt_respects_line_limit() {
         let mut srt = String::new();
         for i in 1..=50 {
-            srt.push_str(&format!("{i}\n00:00:0{},000 --> 00:00:09,000\n行{i}\n\n", i % 10));
+            srt.push_str(&format!(
+                "{i}\n00:00:0{},000 --> 00:00:09,000\n行{i}\n\n",
+                i % 10
+            ));
         }
         let out = strip_srt_to_dialogue(srt.as_bytes(), 30);
         assert_eq!(out.lines().count(), 30);

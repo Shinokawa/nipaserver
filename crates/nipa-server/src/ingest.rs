@@ -32,8 +32,17 @@ pub async fn ingest_result(
     let leaf_id = match media_type {
         "movie" => {
             find_or_create_item(
-                &mut tx, library_id, "movie", None, title, original_title, year, None, None,
-                air_date, ids,
+                &mut tx,
+                library_id,
+                "movie",
+                None,
+                title,
+                original_title,
+                year,
+                None,
+                None,
+                air_date,
+                ids,
             )
             .await?
         }
@@ -42,8 +51,17 @@ pub async fn ingest_result(
             let season_no = result["season"].as_i64().unwrap_or(1);
             let episode_no = result["episode"].as_i64();
             let series = find_or_create_item(
-                &mut tx, library_id, "series", None, title, original_title, year, None, None,
-                None, ids,
+                &mut tx,
+                library_id,
+                "series",
+                None,
+                title,
+                original_title,
+                year,
+                None,
+                None,
+                None,
+                ids,
             )
             .await?;
             let season = find_or_create_season(&mut tx, library_id, series, season_no).await?;
@@ -62,8 +80,17 @@ pub async fn ingest_result(
         _ => {
             // unknown：挂一个 movie 形态的占位节点（可在 UI 改正）
             find_or_create_item(
-                &mut tx, library_id, "movie", None, title, original_title, year, None, None,
-                air_date, ids,
+                &mut tx,
+                library_id,
+                "movie",
+                None,
+                title,
+                original_title,
+                year,
+                None,
+                None,
+                air_date,
+                ids,
             )
             .await?
         }
@@ -91,13 +118,11 @@ pub async fn ingest_result(
     // （series/movie）；不覆盖已有海报。TODO(M2b): Bangumi/TMDB 海报补拉。
     if let Some(url) = image_url {
         let top_id = top_ancestor(&mut tx, leaf_id).await?;
-        sqlx::query(
-            "UPDATE items SET poster_path = ? WHERE id = ? AND poster_path IS NULL",
-        )
-        .bind(url)
-        .bind(top_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE items SET poster_path = ? WHERE id = ? AND poster_path IS NULL")
+            .bind(url)
+            .bind(top_id)
+            .execute(&mut *tx)
+            .await?;
     }
     tx.commit().await?;
 

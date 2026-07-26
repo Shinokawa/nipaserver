@@ -1,0 +1,25 @@
+services:
+  nipaserver:
+    build:
+      context: .
+    image: nipaserver:local
+    restart: unless-stopped
+    init: true
+    ports:
+      - "11810:11810"
+    environment:
+      NIPA_CONFIG: /config/nipaserver.toml
+      NIPA_BIND: 0.0.0.0
+      NIPA_PORT: 11810
+      NIPA_DATA_DIR: /data
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - nipa-data:/data
+      - ./nipaserver.toml:/config/nipaserver.toml:ro
+      - ./media:/media:ro
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  nipa-data:

@@ -57,10 +57,7 @@ mod tests {
     #[test]
     fn exactly_16mb_zeros() {
         let data = vec![0u8; DANDAN_HASH_SIZE];
-        assert_eq!(
-            dandan_hash_bytes(&data),
-            "2c7ab85a893283e98c931e9511add182"
-        );
+        assert_eq!(dandan_hash_bytes(&data), "2c7ab85a893283e98c931e9511add182");
     }
 
     #[test]
@@ -69,10 +66,7 @@ mod tests {
         let data: Vec<u8> = (0..DANDAN_HASH_SIZE + 4096)
             .map(|i| ((i * 31 + 7) % 256) as u8)
             .collect();
-        assert_eq!(
-            dandan_hash_bytes(&data),
-            "86cf57f926ca2598ddf451bb3375ac32"
-        );
+        assert_eq!(dandan_hash_bytes(&data), "86cf57f926ca2598ddf451bb3375ac32");
         // 尾部再多 1 字节不影响结果。
         let mut longer = data.clone();
         longer.push(0xFF);

@@ -10,7 +10,9 @@ use tokio::time::Instant;
 
 use crate::auth::DandanAuth;
 use crate::error::MatchError;
-use crate::types::{BatchItem, BatchMatchRequestBody, BatchMatchResponse, MatchRequest, MatchResponse};
+use crate::types::{
+    BatchItem, BatchMatchRequestBody, BatchMatchResponse, MatchRequest, MatchResponse,
+};
 
 /// 官方 API 基础地址。
 pub const DEFAULT_BASE_URL: &str = "https://api.dandanplay.net";

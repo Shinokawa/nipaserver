@@ -26,9 +26,7 @@ pub enum ProviderError {
 }
 
 /// 校验响应状态码并解析 JSON body。
-pub(crate) async fn read_json(
-    resp: reqwest::Response,
-) -> Result<serde_json::Value, ProviderError> {
+pub(crate) async fn read_json(resp: reqwest::Response) -> Result<serde_json::Value, ProviderError> {
     let status = resp.status();
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();

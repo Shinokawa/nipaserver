@@ -154,9 +154,12 @@ impl ServerConfig {
 
     /// 应用环境变量覆盖（优先级 env > file > default）。
     ///
-    /// v1 覆盖集：`NIPA_PORT`、`NIPA_DATA_DIR`。
-    /// TODO: 后续扩展 NIPA_BIND、NIPA_LOG 等。
+    /// v1 覆盖集：`NIPA_BIND`、`NIPA_PORT`、`NIPA_DATA_DIR`。
+    /// TODO: 后续扩展 NIPA_LOG 等。
     pub fn apply_env_overrides(&mut self) -> Result<(), ConfigError> {
+        if let Ok(bind) = std::env::var("NIPA_BIND") {
+            self.server.bind = bind;
+        }
         if let Ok(port) = std::env::var("NIPA_PORT") {
             self.server.port = port.parse().map_err(|_| ConfigError::InvalidEnv {
                 name: "NIPA_PORT".to_string(),

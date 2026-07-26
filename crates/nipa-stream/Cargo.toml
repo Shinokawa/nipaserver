@@ -3,6 +3,10 @@ name = "nipa-stream"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 description = "ffprobe/ffmpeg sidecar：定位探测、媒体探测、字幕抽取、agent 工具（M3 前奏）"
 
 # 本 crate 不回流客户端（§3.1），保持轻依赖：

@@ -164,7 +164,11 @@ mod tests {
         let files = walk_library(dir.path());
         assert_eq!(
             rel_paths(&files),
-            vec!["Anime/Bocchi/ep01.mkv", "Movies/Deep/Nest/film.m2ts", "root.mp4"]
+            vec![
+                "Anime/Bocchi/ep01.mkv",
+                "Movies/Deep/Nest/film.m2ts",
+                "root.mp4"
+            ]
         );
 
         let ep01 = &files[0];
@@ -219,7 +223,10 @@ mod tests {
         let rel = Path::new(OsStr::from_bytes(b"dir\xFF/bad\xFFname.mkv"));
         let (rel_path, raw_path) = normalize_rel_path(rel);
         assert_eq!(rel_path, "dir\u{FFFD}/bad\u{FFFD}name.mkv");
-        assert_eq!(raw_path.as_deref(), Some(b"dir\xFF/bad\xFFname.mkv".as_slice()));
+        assert_eq!(
+            raw_path.as_deref(),
+            Some(b"dir\xFF/bad\xFFname.mkv".as_slice())
+        );
 
         // 端到端（仅在文件系统允许非 UTF-8 文件名时执行；
         // macOS APFS 会以 EILSEQ 拒绝，Linux/ext4 上完整覆盖）。
@@ -229,7 +236,10 @@ mod tests {
             let files = walk_library(dir.path());
             assert_eq!(files.len(), 1);
             assert_eq!(files[0].rel_path, "bad\u{FFFD}name.mkv");
-            assert_eq!(files[0].raw_path.as_deref(), Some(b"bad\xFFname.mkv".as_slice()));
+            assert_eq!(
+                files[0].raw_path.as_deref(),
+                Some(b"bad\xFFname.mkv".as_slice())
+            );
         }
     }
 

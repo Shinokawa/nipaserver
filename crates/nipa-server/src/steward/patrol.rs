@@ -65,7 +65,9 @@ async fn run_patrol(
     )
     .fetch_one(db)
     .await?;
-    let result = steward.chat(Some(session_id), PATROL_PROMPT.to_string()).await?;
+    let result = steward
+        .chat(Some(session_id), PATROL_PROMPT.to_string())
+        .await?;
 
     sqlx::query(
         "INSERT INTO steward_reports (session_id, report, created_at)

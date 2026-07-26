@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use nipa_agent::{BoxFuture, Tool, ToolError, ToolOutput};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use tokio::sync::broadcast;
 
@@ -15,7 +15,15 @@ use nipa_core::EventMsg;
 use crate::scrape::{ScrapeRequest, ScrapeService};
 
 /// (id, state, result, confidence, transcript, tokens_in, tokens_out)
-type ScrapeTaskRow = (i64, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<i64>);
+type ScrapeTaskRow = (
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<i64>,
+    Option<i64>,
+);
 
 fn db_err(e: sqlx::Error) -> ToolError {
     ToolError::RespondToModel(format!("数据库查询失败: {e}"))
@@ -84,7 +92,19 @@ impl Tool for QueryLibrary {
             sql.push_str(&format!(" ORDER BY {sort} LIMIT ?"));
             let limit = args["limit"].as_i64().unwrap_or(20).clamp(1, 50);
 
-            let mut q = sqlx::query_as::<_, (i64, String, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>)>(&sql);
+            let mut q = sqlx::query_as::<
+                _,
+                (
+                    i64,
+                    String,
+                    Option<String>,
+                    Option<String>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<String>,
+                ),
+            >(&sql);
             for b in &binds {
                 q = q.bind(b);
             }
@@ -99,7 +119,9 @@ impl Tool for QueryLibrary {
                     })
                 })
                 .collect();
-            Ok(ToolOutput::json(&json!({ "count": items.len(), "items": items })))
+            Ok(ToolOutput::json(
+                &json!({ "count": items.len(), "items": items }),
+            ))
         })
     }
 }
@@ -128,9 +150,8 @@ impl Tool for GetScrapeTask {
     }
     fn call(&self, args: Value) -> BoxFuture<'_, Result<ToolOutput, ToolError>> {
         Box::pin(async move {
-            let row: Option<ScrapeTaskRow> =
-                if let Some(id) = args["task_id"].as_i64() {
-                    sqlx::query_as(
+            let row: Option<ScrapeTaskRow> = if let Some(id) = args["task_id"].as_i64() {
+                sqlx::query_as(
                         "SELECT t.id, t.state, t.result, t.confidence, t.transcript, t.tokens_in, t.tokens_out
                          FROM scrape_tasks t WHERE t.id = ?",
                     )
@@ -138,8 +159,8 @@ impl Tool for GetScrapeTask {
                     .fetch_optional(&self.db)
                     .await
                     .map_err(db_err)?
-                } else if let Some(f) = args["file"].as_str() {
-                    sqlx::query_as(
+            } else if let Some(f) = args["file"].as_str() {
+                sqlx::query_as(
                         "SELECT t.id, t.state, t.result, t.confidence, t.transcript, t.tokens_in, t.tokens_out
                          FROM scrape_tasks t
                          LEFT JOIN media_files m ON m.id = t.file_id
@@ -151,11 +172,11 @@ impl Tool for GetScrapeTask {
                     .fetch_optional(&self.db)
                     .await
                     .map_err(db_err)?
-                } else {
-                    return Err(ToolError::RespondToModel(
-                        "需要 task_id 或 file 参数之一".into(),
-                    ));
-                };
+            } else {
+                return Err(ToolError::RespondToModel(
+                    "需要 task_id 或 file 参数之一".into(),
+                ));
+            };
 
             let Some((id, state, result, confidence, transcript, tin, tout)) = row else {
                 return Ok(ToolOutput::text("未找到匹配的识别任务"));
@@ -173,7 +194,11 @@ impl Tool for GetScrapeTask {
                                 "{}({}) {}",
                                 v["tool"].as_str().unwrap_or("?"),
                                 v["duration_ms"],
-                                if v["success"].as_bool().unwrap_or(false) { "ok" } else { "err" }
+                                if v["success"].as_bool().unwrap_or(false) {
+                                    "ok"
+                                } else {
+                                    "err"
+                                }
                             )),
                             Some("task_failed") => {
                                 Some(format!("FAILED: {}", v["message"].as_str().unwrap_or("")))
@@ -363,7 +388,10 @@ pub fn build_steward_tools(
         Arc::new(QueryLibrary { db: db.clone() }),
         Arc::new(GetScrapeTask { db: db.clone() }),
         Arc::new(LibraryStats { db: db.clone() }),
-        Arc::new(ConfirmPending { db: db.clone(), events }),
+        Arc::new(ConfirmPending {
+            db: db.clone(),
+            events,
+        }),
     ];
     if let Some(scrape) = scrape {
         tools.push(Arc::new(RequeueScrape {

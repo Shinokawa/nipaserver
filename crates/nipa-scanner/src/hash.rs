@@ -68,7 +68,10 @@ mod tests {
         let dir = TempDir::new("hash-small");
         let path = dir.write("small.mkv", b"hello world");
         // md5("hello world")
-        assert_eq!(dandan_hash(&path).unwrap(), "5eb63bbbe01eeed093cb22bb8f5acdc3");
+        assert_eq!(
+            dandan_hash(&path).unwrap(),
+            "5eb63bbbe01eeed093cb22bb8f5acdc3"
+        );
     }
 
     #[test]
@@ -76,7 +79,10 @@ mod tests {
         let dir = TempDir::new("hash-empty");
         let path = dir.write("empty.mkv", b"");
         // md5("")
-        assert_eq!(dandan_hash(&path).unwrap(), "d41d8cd98f00b204e9800998ecf8427e");
+        assert_eq!(
+            dandan_hash(&path).unwrap(),
+            "d41d8cd98f00b204e9800998ecf8427e"
+        );
     }
 
     #[test]
@@ -117,8 +123,11 @@ mod tests {
     #[test]
     #[ignore = "需要弹弹play官方测试视频（NIPA_DANDAN_SAMPLE 环境变量指定路径）"]
     fn dandan_hash_official_sample() {
-        let path = std::env::var("NIPA_DANDAN_SAMPLE")
-            .expect("设置 NIPA_DANDAN_SAMPLE 指向官方测试视频");
-        assert_eq!(dandan_hash(path).unwrap(), "658d05841b9476ccc7420b3f0bb21c3b");
+        let path =
+            std::env::var("NIPA_DANDAN_SAMPLE").expect("设置 NIPA_DANDAN_SAMPLE 指向官方测试视频");
+        assert_eq!(
+            dandan_hash(path).unwrap(),
+            "658d05841b9476ccc7420b3f0bb21c3b"
+        );
     }
 }

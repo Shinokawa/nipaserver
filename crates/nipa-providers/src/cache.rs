@@ -88,7 +88,8 @@ mod tests {
     #[tokio::test]
     async fn expired_entry_is_missed_and_removed() {
         let c = TtlCache::new();
-        c.put("k".into(), serde_json::json!(1), Duration::ZERO).await;
+        c.put("k".into(), serde_json::json!(1), Duration::ZERO)
+            .await;
         assert_eq!(c.get("k").await, None);
         assert!(c.map.lock().await.is_empty());
     }

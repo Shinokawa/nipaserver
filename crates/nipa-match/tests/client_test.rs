@@ -98,7 +98,11 @@ async fn signature_mode_sends_signature_headers_with_valid_signature() {
     let requests: Vec<Request> = server.received_requests().await.unwrap();
     assert_eq!(requests.len(), 1);
     let req = &requests[0];
-    let ts: i64 = req.headers["X-Timestamp"].to_str().unwrap().parse().unwrap();
+    let ts: i64 = req.headers["X-Timestamp"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     let sig = req.headers["X-Signature"].to_str().unwrap();
     assert_eq!(
         sig,
@@ -360,10 +364,7 @@ async fn batch_business_error_maps_to_api_error() {
         .await;
 
     let c = client(&server, credentials());
-    let err = c
-        .match_batch(vec![sample_request()])
-        .await
-        .unwrap_err();
+    let err = c.match_batch(vec![sample_request()]).await.unwrap_err();
     match err {
         MatchError::Api {
             error_code,

@@ -12,11 +12,20 @@ use crate::state::AppState;
 /// (id, name, path, kind, file_count)
 type LibraryDbRow = (i64, Option<String>, String, Option<String>, i64);
 /// (task_id, rel_path, result, confidence, evidence)
-type PendingDbRow = (i64, Option<String>, Option<String>, Option<String>, Option<String>);
+type PendingDbRow = (
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/libraries", get(list_libraries).post(create_library))
+        .route(
+            "/api/v1/libraries",
+            get(list_libraries).post(create_library),
+        )
         .route("/api/v1/libraries/{id}/scan", post(trigger_scan))
         .route("/api/v1/items", get(list_items))
         .route("/api/v1/items/{id}", get(get_item))
@@ -45,7 +54,13 @@ async fn list_libraries(
     .map_err(internal)?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, name, path, kind, file_count)| Library { id, name, path, kind, file_count })
+            .map(|(id, name, path, kind, file_count)| Library {
+                id,
+                name,
+                path,
+                kind,
+                file_count,
+            })
             .collect(),
     ))
 }
@@ -175,7 +190,9 @@ struct ItemRow {
 
 /// LIKE 通配符转义（用户输入是数据不是模式）。
 fn like_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// 海报墙数据（§8.1 + 批次 B §11 扩参）。默认只返回顶层实体（series/movie）。
@@ -268,7 +285,21 @@ async fn list_items(
                 air_date, poster_path
          FROM items{cond} ORDER BY {sort} LIMIT ? OFFSET ?"
     );
-    let mut query = sqlx::query_as::<_, (i64, String, Option<i64>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>, Option<String>)>(&sql);
+    let mut query = sqlx::query_as::<
+        _,
+        (
+            i64,
+            String,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+        ),
+    >(&sql);
     for b in &binds {
         query = query.bind(b);
     }
@@ -288,9 +319,31 @@ async fn list_items(
         headers,
         Json(
             rows.into_iter()
-                .map(|(id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path)| ItemRow {
-                    id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path,
-                })
+                .map(
+                    |(
+                        id,
+                        kind,
+                        parent_id,
+                        title,
+                        original_title,
+                        year,
+                        season_no,
+                        episode_no,
+                        air_date,
+                        poster_path,
+                    )| ItemRow {
+                        id,
+                        kind,
+                        parent_id,
+                        title,
+                        original_title,
+                        year,
+                        season_no,
+                        episode_no,
+                        air_date,
+                        poster_path,
+                    },
+                )
                 .collect(),
         ),
     ))
@@ -343,21 +396,49 @@ async fn get_item(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ItemDetail>, (StatusCode, String)> {
-    type Row = (i64, String, Option<i64>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>, Option<String>);
+    type Row = (
+        i64,
+        String,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
     // 详情扩展列（§12）：overview/rating/backdrop + 0005 新列。
-    type ExtraRow = (Option<String>, Option<f64>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>);
+    type ExtraRow = (
+        Option<String>,
+        Option<f64>,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
     let to_item = |r: Row| ItemRow {
-        id: r.0, kind: r.1, parent_id: r.2, title: r.3, original_title: r.4,
-        year: r.5, season_no: r.6, episode_no: r.7, air_date: r.8, poster_path: r.9,
+        id: r.0,
+        kind: r.1,
+        parent_id: r.2,
+        title: r.3,
+        original_title: r.4,
+        year: r.5,
+        season_no: r.6,
+        episode_no: r.7,
+        air_date: r.8,
+        poster_path: r.9,
     };
     const COLS: &str = "id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path";
 
-    let row: Option<Row> =
-        sqlx::query_as(&format!("SELECT {COLS} FROM items WHERE id = ? AND deleted_at IS NULL"))
-            .bind(id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(internal)?;
+    let row: Option<Row> = sqlx::query_as(&format!(
+        "SELECT {COLS} FROM items WHERE id = ? AND deleted_at IS NULL"
+    ))
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(internal)?;
     let Some(row) = row else {
         return Err((StatusCode::NOT_FOUND, format!("条目 {id} 不存在")));
     };
@@ -473,13 +554,13 @@ async fn list_pending(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PendingRow>>, (StatusCode, String)> {
     let rows: Vec<PendingDbRow> = sqlx::query_as(
-            "SELECT t.id, m.rel_path, t.result, t.confidence, t.evidence
+        "SELECT t.id, m.rel_path, t.result, t.confidence, t.evidence
              FROM scrape_tasks t LEFT JOIN media_files m ON m.id = t.file_id
              WHERE t.state = 'needs_review' ORDER BY t.id",
-        )
-        .fetch_all(&state.db)
-        .await
-        .map_err(internal)?;
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(
         rows.into_iter()
             .map(|(task_id, file, result, confidence, evidence)| PendingRow {

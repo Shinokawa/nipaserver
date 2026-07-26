@@ -9,8 +9,8 @@
 //! TODO(M3): ffprobe 摘要进 evidence（当前无 ffmpeg 依赖，evidence 降级形态）。
 
 use nipa_core::EventMsg;
-use nipa_match::{classify, DandanClient, MatchOutcome, MatchRequest};
-use nipa_scanner::{build_evidence, dandan_hash, fingerprint, walk_library, EvidenceParams};
+use nipa_match::{DandanClient, MatchOutcome, MatchRequest, classify};
+use nipa_scanner::{EvidenceParams, build_evidence, dandan_hash, fingerprint, walk_library};
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -155,7 +155,8 @@ pub async fn scan_library(
                         .fetch_one(db)
                         .await?;
                         if let Err(e) =
-                            crate::ingest::ingest_result(db, library_id, Some(file_id), &result).await
+                            crate::ingest::ingest_result(db, library_id, Some(file_id), &result)
+                                .await
                         {
                             warn!(task_id, error = %e, "L1 ingest failed");
                         } else {
@@ -184,8 +185,10 @@ pub async fn scan_library(
                                 )
                             })
                             .collect();
-                        l1_candidates_note =
-                            Some(format!("弹弹play hash 未精确命中，候选: {}", names.join("; ")));
+                        l1_candidates_note = Some(format!(
+                            "弹弹play hash 未精确命中，候选: {}",
+                            names.join("; ")
+                        ));
                     }
                     MatchOutcome::NoMatch => {}
                 },
@@ -198,8 +201,7 @@ pub async fn scan_library(
         let siblings: Vec<String> = discovered
             .iter()
             .filter(|f| {
-                f.rel_path != file.rel_path
-                    && parent_dir(&f.rel_path) == parent_dir(&file.rel_path)
+                f.rel_path != file.rel_path && parent_dir(&f.rel_path) == parent_dir(&file.rel_path)
             })
             .map(|f| file_name(&f.rel_path).to_string())
             .collect();
@@ -255,7 +257,9 @@ fn dandan_to_result(m: &nipa_match::MatchResultV2) -> serde_json::Value {
     let episode_no = m.episode_id % 10000;
     let is_movie = matches!(
         m.anime_type,
-        nipa_match::AnimeType::Movie | nipa_match::AnimeType::TmdbMovie | nipa_match::AnimeType::JpMovie
+        nipa_match::AnimeType::Movie
+            | nipa_match::AnimeType::TmdbMovie
+            | nipa_match::AnimeType::JpMovie
     );
     serde_json::json!({
         "media_type": if is_movie { "movie" } else { "tv_episode" },

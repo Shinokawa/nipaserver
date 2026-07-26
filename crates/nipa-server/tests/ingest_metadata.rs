@@ -4,8 +4,8 @@
 #[path = "../src/ingest.rs"]
 mod ingest;
 
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 async fn setup_db() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
@@ -13,7 +13,10 @@ async fn setup_db() -> SqlitePool {
         .connect("sqlite::memory:")
         .await
         .expect("open in-memory sqlite");
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrations");
     pool
 }
 
@@ -48,7 +51,9 @@ async fn ingest_writes_metadata_and_series_id() {
         "reasoning": "test"
     });
 
-    let ep_id = ingest::ingest_result(&db, lib, None, &result).await.unwrap();
+    let ep_id = ingest::ingest_result(&db, lib, None, &result)
+        .await
+        .unwrap();
 
     // episode 行：series_id 回填 + air_date/runtime_ms/date_modified
     let (kind, series_id, air_date, runtime_ms, date_modified): (
@@ -77,7 +82,10 @@ async fn ingest_writes_metadata_and_series_id() {
             .fetch_one(&db)
             .await
             .unwrap();
-    assert_eq!(overview.as_deref(), Some("勇者一行的魔法使芙莉莲的后日谈。"));
+    assert_eq!(
+        overview.as_deref(),
+        Some("勇者一行的魔法使芙莉莲的后日谈。")
+    );
     assert_eq!(sort_name.as_deref(), Some("葬送的芙莉莲"));
 
     // genres/studios → item_values + item_value_map
@@ -110,20 +118,24 @@ async fn ingest_writes_metadata_and_series_id() {
     .await
     .unwrap();
     assert_eq!(people.len(), 2);
-    assert_eq!(people[0], ("种崎敦美".into(), "actor".into(), Some("芙莉莲".into()), 0));
+    assert_eq!(
+        people[0],
+        ("种崎敦美".into(), "actor".into(), Some("芙莉莲".into()), 0)
+    );
     assert_eq!(people[1].0, "斋藤圭一郎");
     assert_eq!(people[1].1, "director");
     assert_eq!(people[1].2, None);
 
     // 幂等：同结论再灌一次不产生重复 genres/people
-    let ep2 = ingest::ingest_result(&db, lib, None, &result).await.unwrap();
+    let ep2 = ingest::ingest_result(&db, lib, None, &result)
+        .await
+        .unwrap();
     assert_eq!(ep2, ep_id);
-    let n_values: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM item_value_map WHERE item_id = ?")
-            .bind(series_id)
-            .fetch_one(&db)
-            .await
-            .unwrap();
+    let n_values: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM item_value_map WHERE item_id = ?")
+        .bind(series_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
     let n_people: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM item_people WHERE item_id = ?")
         .bind(series_id)
         .fetch_one(&db)
@@ -147,7 +159,9 @@ async fn ingest_movie_metadata_on_single_node() {
         "confidence": "high",
         "reasoning": "test"
     });
-    let id = ingest::ingest_result(&db, lib, None, &result).await.unwrap();
+    let id = ingest::ingest_result(&db, lib, None, &result)
+        .await
+        .unwrap();
     let (overview, sort_name, runtime_ms): (Option<String>, Option<String>, Option<i64>) =
         sqlx::query_as("SELECT overview, sort_name, runtime_ms FROM items WHERE id = ?")
             .bind(id)

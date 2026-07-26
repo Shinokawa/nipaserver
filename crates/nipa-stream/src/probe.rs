@@ -127,7 +127,9 @@ pub fn summarize(raw: &Value) -> MediaSummary {
             .and_then(|f| f.get("format_name"))
             .and_then(Value::as_str)
             .map(str::to_string),
-        duration_secs: format.and_then(|f| f.get("duration")).and_then(value_as_f64),
+        duration_secs: format
+            .and_then(|f| f.get("duration"))
+            .and_then(value_as_f64),
         format_tags: format
             .and_then(|f| f.get("tags"))
             .and_then(Value::as_object)
@@ -177,7 +179,10 @@ pub fn summarize(raw: &Value) -> MediaSummary {
                     .unwrap_or("");
                 summary.video = Some(VideoInfo {
                     codec,
-                    width: stream.get("width").and_then(Value::as_u64).map(|w| w as u32),
+                    width: stream
+                        .get("width")
+                        .and_then(Value::as_u64)
+                        .map(|w| w as u32),
                     height: stream
                         .get("height")
                         .and_then(Value::as_u64)

@@ -32,18 +32,30 @@ pub struct PlayState {
 /// - 否则正常记录续播点。
 pub fn resolve_play_state(position_ms: i64, runtime_ms: Option<i64>) -> PlayState {
     let Some(runtime) = runtime_ms.filter(|r| *r > 0) else {
-        return PlayState { position_ms: 0, mark_played: true };
+        return PlayState {
+            position_ms: 0,
+            mark_played: true,
+        };
     };
     let pct = position_ms as f64 * 100.0 / runtime as f64;
     if pct < MIN_RESUME_PCT {
-        PlayState { position_ms: 0, mark_played: false }
+        PlayState {
+            position_ms: 0,
+            mark_played: false,
+        }
     } else if pct > MAX_RESUME_PCT
         || position_ms >= runtime - 1000
         || runtime < MIN_RESUME_DURATION_MS
     {
-        PlayState { position_ms: 0, mark_played: true }
+        PlayState {
+            position_ms: 0,
+            mark_played: true,
+        }
     } else {
-        PlayState { position_ms, mark_played: false }
+        PlayState {
+            position_ms,
+            mark_played: false,
+        }
     }
 }
 
@@ -172,12 +184,11 @@ pub async fn query_next_up(
             break;
         }
         // 最后看完的位置；一集都没看完 → (-1, -1) 哨兵取全剧第一未播集
-        let pos: Option<(Option<i64>, Option<i64>)> =
-            sqlx::query_as(NEXTUP_LAST_PLAYED_POS_SQL)
-                .bind(user_id)
-                .bind(series_id)
-                .fetch_optional(db)
-                .await?;
+        let pos: Option<(Option<i64>, Option<i64>)> = sqlx::query_as(NEXTUP_LAST_PLAYED_POS_SQL)
+            .bind(user_id)
+            .bind(series_id)
+            .fetch_optional(db)
+            .await?;
         let (s, e) = match pos {
             Some((s, e)) => (s.unwrap_or(-1), e.unwrap_or(-1)),
             None => (-1, -1),
@@ -190,7 +201,11 @@ pub async fn query_next_up(
             .fetch_optional(db)
             .await?;
         if let Some(episode) = next {
-            out.push(NextUpRow { series_id, last_played_at: last_watched, episode });
+            out.push(NextUpRow {
+                series_id,
+                last_played_at: last_watched,
+                episode,
+            });
         }
     }
     Ok(out)
@@ -226,7 +241,10 @@ pub struct LatestRow {
 }
 
 pub async fn query_latest(db: &SqlitePool, per_library: i64) -> sqlx::Result<Vec<LatestRow>> {
-    sqlx::query_as(LATEST_SQL).bind(per_library).fetch_all(db).await
+    sqlx::query_as(LATEST_SQL)
+        .bind(per_library)
+        .fetch_all(db)
+        .await
 }
 
 // ===== 单元测试：played 判定全分支 =====
@@ -236,7 +254,10 @@ mod tests {
     use super::*;
 
     fn ps(position_ms: i64, mark_played: bool) -> PlayState {
-        PlayState { position_ms, mark_played }
+        PlayState {
+            position_ms,
+            mark_played,
+        }
     }
 
     #[test]
@@ -260,7 +281,10 @@ mod tests {
     fn min_pct_boundary_is_inclusive_resume() {
         // pct == 5% 不属于 "< 5%"，正常记录续播点
         let runtime = 3_600_000;
-        assert_eq!(resolve_play_state(180_000, Some(runtime)), ps(180_000, false));
+        assert_eq!(
+            resolve_play_state(180_000, Some(runtime)),
+            ps(180_000, false)
+        );
     }
 
     #[test]
@@ -274,7 +298,10 @@ mod tests {
     fn max_pct_boundary_keeps_resume() {
         // pct == 90% 不属于 ">90%"（且距结尾 >1s），仍记续播点
         let runtime = 3_600_000;
-        assert_eq!(resolve_play_state(3_240_000, Some(runtime)), ps(3_240_000, false));
+        assert_eq!(
+            resolve_play_state(3_240_000, Some(runtime)),
+            ps(3_240_000, false)
+        );
     }
 
     #[test]
@@ -295,7 +322,10 @@ mod tests {
     fn normal_midway_records_position() {
         // 规则 5：正常记录续播点，played 不动
         let runtime = 600_000; // 10min
-        assert_eq!(resolve_play_state(300_000, Some(runtime)), ps(300_000, false));
+        assert_eq!(
+            resolve_play_state(300_000, Some(runtime)),
+            ps(300_000, false)
+        );
     }
 
     #[test]

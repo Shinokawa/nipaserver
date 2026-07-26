@@ -3,6 +3,10 @@ name = "nipa-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 description = "NipaServer 主程序：axum 装配、API、迁移、SSE"
 
 [[bin]]

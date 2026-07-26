@@ -7,6 +7,10 @@ name = "nipa-providers"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 description = "tmdb / bangumi 元数据客户端 + egress 层（节流 + TTL 缓存 + agent 工具）"
 
 [dependencies]

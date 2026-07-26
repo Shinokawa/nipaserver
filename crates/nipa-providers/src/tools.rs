@@ -80,9 +80,9 @@ fn arg_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, ToolError> {
 }
 
 fn arg_i64(args: &Value, key: &str) -> Result<i64, ToolError> {
-    args.get(key).and_then(Value::as_i64).ok_or_else(|| {
-        ToolError::RespondToModel(format!("参数 `{key}` 缺失或不是整数"))
-    })
+    args.get(key)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| ToolError::RespondToModel(format!("参数 `{key}` 缺失或不是整数")))
 }
 
 fn opt_year(args: &Value) -> Result<Option<i32>, ToolError> {

@@ -7,6 +7,10 @@ name = "nipa-match"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 description = "弹弹play 文件识别客户端（认证双模式、match/batch、前 16MB MD5、匹配结果三分类）"
 
 [dependencies]

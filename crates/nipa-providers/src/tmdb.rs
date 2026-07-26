@@ -108,7 +108,8 @@ impl TmdbClient {
             params.push(("first_air_date_year", y.to_string()));
         }
         let key = format!("tmdb:search_tv:{query}:{year:?}");
-        self.get_cached(key, "/search/tv", &params, SEARCH_TTL).await
+        self.get_cached(key, "/search/tv", &params, SEARCH_TTL)
+            .await
     }
 
     /// `GET /search/movie?query=&language=zh-CN[&year=]`

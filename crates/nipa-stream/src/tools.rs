@@ -26,10 +26,7 @@ use crate::probe::probe;
 
 /// 组装 nipa-stream 工具集（ffmpeg 探测成功时挂载；探测失败走 §6.3 降级矩阵，
 /// 不注册这两个工具）。
-pub fn build_stream_tools(
-    paths: &FfmpegPaths,
-    allowed_roots: Vec<PathBuf>,
-) -> Vec<Arc<dyn Tool>> {
+pub fn build_stream_tools(paths: &FfmpegPaths, allowed_roots: Vec<PathBuf>) -> Vec<Arc<dyn Tool>> {
     let guard = Arc::new(PathGuard::new(allowed_roots));
     vec![
         Arc::new(ProbeMedia {
@@ -67,9 +64,9 @@ impl PathGuard {
     /// 校验并返回 canonicalize 后的路径。失败一律 `RespondToModel`
     /// （模型可自纠：换成 evidence 里给出的真实路径）。
     fn check(&self, raw: &str) -> Result<PathBuf, ToolError> {
-        let canonical = Path::new(raw).canonicalize().map_err(|e| {
-            ToolError::RespondToModel(format!("路径 `{raw}` 无法访问（{e}）"))
-        })?;
+        let canonical = Path::new(raw)
+            .canonicalize()
+            .map_err(|e| ToolError::RespondToModel(format!("路径 `{raw}` 无法访问（{e}）")))?;
         if self.roots.iter().any(|root| canonical.starts_with(root)) {
             Ok(canonical)
         } else {
@@ -213,17 +210,20 @@ impl Tool for ExtractSubtitle {
             // 先 probe 拿时长与字幕轨类型：图形字幕在起 ffmpeg 前就明确拒绝，
             // 顺带把"轨不存在/不是字幕轨"变成可自纠的错误信息。
             let probed = probe(&self.ffprobe, &path).await.map_err(stream_err)?;
-            let track = probed.summary.subtitle_by_index(stream_index).ok_or_else(|| {
-                let available: Vec<u32> = probed
-                    .summary
-                    .subtitle_tracks
-                    .iter()
-                    .map(|t| t.index)
-                    .collect();
-                ToolError::RespondToModel(format!(
-                    "流 0:{stream_index} 不是字幕轨；可用字幕轨 index：{available:?}"
-                ))
-            })?;
+            let track = probed
+                .summary
+                .subtitle_by_index(stream_index)
+                .ok_or_else(|| {
+                    let available: Vec<u32> = probed
+                        .summary
+                        .subtitle_tracks
+                        .iter()
+                        .map(|t| t.index)
+                        .collect();
+                    ToolError::RespondToModel(format!(
+                        "流 0:{stream_index} 不是字幕轨；可用字幕轨 index：{available:?}"
+                    ))
+                })?;
             if !track.is_text {
                 return Err(stream_err(StreamError::GraphicSubtitle { stream_index }));
             }
