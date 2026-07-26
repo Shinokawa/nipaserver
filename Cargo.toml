@@ -28,7 +28,7 @@ nipa-providers = { path = "crates/nipa-providers" }
 nipa-download = { path = "crates/nipa-download" }
 nipa-stream = { path = "crates/nipa-stream" }
 # 独立仓库（workspace exclude）：agent runtime，契约见 docs/03-agent接口契约.md
-nipa-agent = { version = "=0.1.0", path = "nipa-agent" }
+nipa-agent = { version = "=0.1.1", path = "nipa-agent" }
 
 # 序列化与配置
 serde = { version = "1", features = ["derive"] }

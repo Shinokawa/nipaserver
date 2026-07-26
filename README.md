@@ -107,7 +107,7 @@ crates/nipa-providers  Bangumi/TMDB provider 与 Agent tools
 crates/nipa-stream     ffprobe、播放判定与 HLS session
 crates/nipa-download   librqbit 与 Mikan RSS
 crates/nipa-server     SQLite、业务编排与 Axum API
-nipa-agent             v0.1.0 独立 submodule：工具调用 Agent runtime
+nipa-agent             v0.1.1 独立 submodule：工具调用 Agent runtime
 webui/app              Svelte 5 WebUI
 ```
 
@@ -137,6 +137,6 @@ webui/app              Svelte 5 WebUI
 
 ## 许可证与第三方服务
 
-本仓库代码以 [MIT License](LICENSE) 发布。`nipa-agent` 是固定到 `v0.1.0` 的独立 MIT submodule。第三方组件、服务条款与署名见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+本仓库代码以 [MIT License](LICENSE) 发布。`nipa-agent` 是固定到 `v0.1.1` 的独立 MIT submodule。第三方组件、服务条款与署名见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.

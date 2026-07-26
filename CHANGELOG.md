@@ -11,7 +11,7 @@
 - M4 `librqbit 8.1.1` 下载器与 Mikan RSS 订阅；
 - 下载投影对账、RSS 持久去重和下载完成幂等入库；
 - 开源项目文档、CI、容器与社区维护文件。
-- 正式版本化 `nipa-agent v0.1.0`，主仓以 submodule commit 和 Cargo 精确版本双重固定。
+- 正式版本化 `nipa-agent v0.1.1`，以中文作为主要项目文档，主仓通过 submodule commit 和 Cargo 精确版本双重固定。
 
 ### Security
 

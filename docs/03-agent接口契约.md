@@ -1,7 +1,7 @@
-# nipa-agent ↔ nipaserver 接口契约 v1（nipa-agent 0.1.0）
+# nipa-agent ↔ nipaserver 接口契约 v1（nipa-agent 0.1.1）
 
 > 2026-07-26。双方并行开发的对齐基准；改动此文件需同步改两边。
-> nipa-agent 是独立版本化项目（`nipa-agent/` submodule，不在 workspace members 里），nipaserver 通过精确版本约束和本地 path 接入：`nipa-agent = { version = "=0.1.0", path = "nipa-agent" }`。发布版本以 `vX.Y.Z` 注释标签为准。
+> nipa-agent 是独立版本化项目（`nipa-agent/` submodule，不在 workspace members 里），nipaserver 通过精确版本约束和本地 path 接入：`nipa-agent = { version = "=0.1.1", path = "nipa-agent" }`。发布版本以 `vX.Y.Z` 注释标签为准。
 
 ## 1. 职责边界
 

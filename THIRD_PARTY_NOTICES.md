@@ -28,4 +28,4 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 项目研究 Jellyfin 的公开协议和播放判定行为，但不复制 Jellyfin 的 GPL 实现代码。`reference/` 仅为本地研究目录并被 Git 忽略，不属于发布内容。
 
-[`nipa-agent v0.1.0`](https://github.com/AimesSoft/nipa-agent/tree/v0.1.0) 是独立 Git submodule，采用 MIT License；主仓固定其版本但不重新授权其代码。
+[`nipa-agent v0.1.1`](https://github.com/AimesSoft/nipa-agent/tree/v0.1.1) 是独立 Git submodule，采用 MIT License；主仓固定其版本但不重新授权其代码。
