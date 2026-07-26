@@ -111,10 +111,12 @@ async fn trigger_scan(
     let db = state.db.clone();
     let events = state.events.clone();
     let scrape = state.scrape.clone();
+    let dandan = state.dandan.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::scan::scan_library(
             &db,
             &events,
+            dandan.as_ref(),
             scrape.as_ref(),
             crate::api::SCRAPE_SYSTEM_PROMPT,
             id,

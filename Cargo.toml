@@ -52,7 +52,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 
 # Web/API（§2.3；仅 nipa-server 可用——回流 crates 不得依赖 axum/tower）
 axum = "0.8"
-tower-http = { version = "0.6", features = ["trace"] }
+tower-http = { version = "0.6", features = ["trace", "fs"] }
 
 # 数据库（§2.3/§9）
 sqlx = { version = "0.8", features = [
@@ -64,6 +64,10 @@ sqlx = { version = "0.8", features = [
 
 # CLI
 clap = { version = "4", features = ["derive"] }
+
+# 字幕编码嗅探（§4.2 字幕采样转 UTF-8；nipa-stream）
+chardetng = "0.1"
+encoding_rs = "0.8"
 
 # 文件扫描与指纹（§4.1；nipa-scanner）
 walkdir = "2"

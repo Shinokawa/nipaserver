@@ -9,8 +9,10 @@
 //! TODO(M3): ffprobe 摘要进 evidence（当前无 ffmpeg 依赖，evidence 降级形态）。
 
 use nipa_core::EventMsg;
+use nipa_match::{classify, DandanClient, MatchOutcome, MatchRequest};
 use nipa_scanner::{build_evidence, dandan_hash, fingerprint, walk_library, EvidenceParams};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{info, warn};
 
@@ -20,6 +22,7 @@ pub struct ScanOutcome {
     pub discovered: usize,
     pub new_files: usize,
     pub moved: usize,
+    pub matched_l1: usize,
     pub queued_l2: usize,
 }
 
@@ -27,6 +30,7 @@ pub struct ScanOutcome {
 pub async fn scan_library(
     db: &SqlitePool,
     events: &broadcast::Sender<EventMsg>,
+    dandan: Option<&Arc<DandanClient>>,
     scrape: Option<&ScrapeService>,
     scrape_system_prompt: &str,
     library_id: i64,
@@ -49,6 +53,7 @@ pub async fn scan_library(
         discovered: discovered.len(),
         new_files: 0,
         moved: 0,
+        matched_l1: 0,
         queued_l2: 0,
     };
 
@@ -128,10 +133,67 @@ pub async fn scan_library(
         .await?;
         outcome.new_files += 1;
 
-        // TODO(M1.x): L1 弹弹play match——凭证系统接通后启用（nipa-match 已就绪）。
-        // 当前按降级路径直接进 L2。
+        // ===== L1：弹弹play hash match（凭证可用时；§4.1）=====
+        let mut l1_candidates_note: Option<String> = None;
+        if let Some(client) = dandan {
+            let name_no_ext = file_name(&file.rel_path)
+                .rsplit_once('.')
+                .map(|(n, _)| n)
+                .unwrap_or_else(|| file_name(&file.rel_path));
+            let req = MatchRequest::new(name_no_ext, &hash, file.size as i64);
+            match client.match_file(req).await {
+                Ok(resp) => match classify(resp) {
+                    MatchOutcome::Exact(m) => {
+                        // 精确命中 → 直接入库（弹弹play 结论视同 high 置信度）
+                        let result = dandan_to_result(&m);
+                        let task_id = sqlx::query_scalar::<_, i64>(
+                            "INSERT INTO scrape_tasks (file_id, tier, state, result, confidence, model, created_at)
+                             VALUES (?, 'l1', 'done', ?, 'high', 'dandanplay-hash', unixepoch()) RETURNING id",
+                        )
+                        .bind(file_id)
+                        .bind(result.to_string())
+                        .fetch_one(db)
+                        .await?;
+                        if let Err(e) =
+                            crate::ingest::ingest_result(db, library_id, Some(file_id), &result).await
+                        {
+                            warn!(task_id, error = %e, "L1 ingest failed");
+                        } else {
+                            sqlx::query("UPDATE media_files SET status = 'matched' WHERE id = ?")
+                                .bind(file_id)
+                                .execute(db)
+                                .await?;
+                            outcome.matched_l1 += 1;
+                            let _ = events.send(EventMsg::ScrapeUpdate {
+                                task_id,
+                                state: "done".into(),
+                            });
+                            continue; // L1 命中，无需 L2
+                        }
+                    }
+                    MatchOutcome::Candidates(list) => {
+                        // 候选给 L2 当线索（§4.1）
+                        let names: Vec<String> = list
+                            .iter()
+                            .take(5)
+                            .map(|m| {
+                                format!(
+                                    "{}(animeId={})",
+                                    m.anime_title.as_deref().unwrap_or("?"),
+                                    m.anime_id
+                                )
+                            })
+                            .collect();
+                        l1_candidates_note =
+                            Some(format!("弹弹play hash 未精确命中，候选: {}", names.join("; ")));
+                    }
+                    MatchOutcome::NoMatch => {}
+                },
+                Err(e) => warn!(file = %file.rel_path, error = %e, "L1 match error; falling to L2"),
+            }
+        }
 
-        // L2：组 evidence 入队
+        // ===== L2：组 evidence 入队 =====
         let Some(scrape) = scrape else { continue };
         let siblings: Vec<String> = discovered
             .iter()
@@ -141,12 +203,15 @@ pub async fn scan_library(
             })
             .map(|f| file_name(&f.rel_path).to_string())
             .collect();
-        let evidence = build_evidence(&EvidenceParams {
+        let mut evidence = build_evidence(&EvidenceParams {
             rel_path: &file.rel_path,
             ffprobe: None, // TODO(M3)
             subtitle_sample: None,
             siblings: &siblings,
         });
+        if let Some(note) = &l1_candidates_note {
+            evidence.push_str(&format!("\n{note}"));
+        }
         let task_id = sqlx::query_scalar::<_, i64>(
             "INSERT INTO scrape_tasks (file_id, tier, state, evidence, created_at)
              VALUES (?, 'l2', 'queued', ?, unixepoch()) RETURNING id",
@@ -173,11 +238,35 @@ pub async fn scan_library(
     let _ = events.send(EventMsg::ScanProgress {
         library_id,
         message: format!(
-            "扫描完成：发现 {}，新增 {}，移动 {}，AI 入队 {}",
-            outcome.discovered, outcome.new_files, outcome.moved, outcome.queued_l2
+            "扫描完成：发现 {}，新增 {}，移动 {}，hash 命中 {}，AI 入队 {}",
+            outcome.discovered,
+            outcome.new_files,
+            outcome.moved,
+            outcome.matched_l1,
+            outcome.queued_l2
         ),
     });
     Ok(outcome)
+}
+
+/// 弹弹play 精确命中 → submit_result 同构 JSON（进同一 ingest 管线）。
+/// episodeId 规则：animeId*10000 + 集数（官方约定），据此还原集号。
+fn dandan_to_result(m: &nipa_match::MatchResultV2) -> serde_json::Value {
+    let episode_no = m.episode_id % 10000;
+    let is_movie = matches!(
+        m.anime_type,
+        nipa_match::AnimeType::Movie | nipa_match::AnimeType::TmdbMovie | nipa_match::AnimeType::JpMovie
+    );
+    serde_json::json!({
+        "media_type": if is_movie { "movie" } else { "tv_episode" },
+        "title": m.anime_title.clone().unwrap_or_else(|| format!("弹弹play {}", m.anime_id)),
+        "season": 1,
+        "episode": episode_no,
+        "ids": { "dandanplay_anime": m.anime_id, "dandanplay_episode": m.episode_id },
+        "confidence": "high",
+        "reasoning": format!("弹弹play hash 精确命中：{}", m.episode_title.as_deref().unwrap_or("")),
+        "image_url": m.image_url,
+    })
 }
 
 fn parent_dir(rel: &str) -> &str {

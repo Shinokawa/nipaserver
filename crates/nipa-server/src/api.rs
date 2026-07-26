@@ -31,6 +31,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/chat", post(chat))
         .route("/api/v1/chat/sessions", get(chat_sessions))
         .route("/api/v1/chat/sessions/{id}/messages", get(chat_history))
+        .route("/api/v1/steward/reports", get(steward_reports))
         // 媒体库与条目（M1）
         .merge(crate::api_library::router())
         .with_state(state)
@@ -69,9 +70,8 @@ async fn system_info(State(state): State<AppState>) -> Json<SystemInfo> {
         data_dir: state.config.server.data_dir.display().to_string(),
         database_ok,
         capabilities: Capabilities {
-            // TODO(M3): ffmpeg 探测；TODO(M1): 弹弹play 凭证可用性。
-            ffmpeg: false,
-            dandanplay_l1: false,
+            ffmpeg: state.ffmpeg_available,
+            dandanplay_l1: state.dandan.is_some(),
             ai_scrape: state.scrape.is_some(),
         },
     })
@@ -260,6 +260,30 @@ async fn chat_history(
                     .unwrap_or(serde_json::Value::String(content)),
                 created_at,
             })
+            .collect(),
+    ))
+}
+
+#[derive(Debug, Serialize)]
+struct ReportRow {
+    id: i64,
+    report: String,
+    created_at: i64,
+}
+
+/// 管家巡检报告 feed（管家页顶部 + 顶栏铃铛）。
+async fn steward_reports(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ReportRow>>, (StatusCode, String)> {
+    let rows: Vec<(i64, String, i64)> = sqlx::query_as(
+        "SELECT id, report, created_at FROM steward_reports ORDER BY created_at DESC LIMIT 20",
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, report, created_at)| ReportRow { id, report, created_at })
             .collect(),
     ))
 }

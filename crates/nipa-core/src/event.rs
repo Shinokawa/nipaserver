@@ -29,4 +29,6 @@ pub enum EventMsg {
     },
     /// 管家对话过程事件透传（工具调用进度，WebUI 对话页实时渲染）。
     Steward { agent: serde_json::Value },
+    /// 管家巡检报告（顶栏铃铛 + 管家页 feed）。
+    StewardReport { report: String },
 }

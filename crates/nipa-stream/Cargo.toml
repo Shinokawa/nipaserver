@@ -3,12 +3,23 @@ name = "nipa-stream"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "ffprobe/ffmpeg sidecar、播放判定、HLS session（stub）"
+description = "ffprobe/ffmpeg sidecar：定位探测、媒体探测、字幕抽取、agent 工具（M3 前奏）"
 
-# 本 crate 不回流客户端（§3.1），但 M0 阶段同样保持零重依赖：
-# ffmpeg/ffprobe 走 sidecar 子进程（§2.3），不做 FFI 绑定。
+# 本 crate 不回流客户端（§3.1），保持轻依赖：
+# ffmpeg/ffprobe 走 sidecar 子进程（§2.3/§6.3），不做 FFI 绑定。
+# 回流约束（§3.1）：不得依赖 axum/sqlx。
 
 [dependencies]
 nipa-core = { workspace = true }
+# nipa-agent 是同目录下的独立项目（不在 workspace members 里），经根 workspace path 依赖接入。
+nipa-agent = { workspace = true }
+chardetng = { workspace = true }
+encoding_rs = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

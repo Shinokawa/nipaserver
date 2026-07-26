@@ -17,4 +17,8 @@ pub struct AppState {
     pub scrape: Option<crate::scrape::ScrapeService>,
     /// 管家服务；None = [model] 未配置。
     pub steward: Option<Arc<crate::steward::StewardService>>,
+    /// 弹弹play L1 客户端；None = 凭证不可用（降级 L2-only，§4.1）。
+    pub dandan: Option<Arc<nipa_match::DandanClient>>,
+    /// ffmpeg 是否可用（§6.3 降级矩阵；capabilities 上报）。
+    pub ffmpeg_available: bool,
 }

@@ -23,7 +23,7 @@ pub struct ServerConfig {
 }
 
 /// `[providers]` 段：元数据源凭证（§5）。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ProvidersSection {
     /// TMDB API Read Access Token（Bearer）。空 = TMDB 工具不可用，仅 Bangumi。
@@ -31,6 +31,24 @@ pub struct ProvidersSection {
     pub tmdb_token: String,
     /// Bangumi API User-Agent 覆盖；空用内置默认（AimesSoft/nipaserver/...）。
     pub bangumi_user_agent: String,
+    /// 弹弹play L1 开关（§4.1）。默认 true：启动时从分发服务器拉 appSecret，
+    /// 失败自动降级 L2-only。false = 强制跳过 L1。
+    #[serde(default = "default_true")]
+    pub dandanplay_l1: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for ProvidersSection {
+    fn default() -> Self {
+        Self {
+            tmdb_token: String::new(),
+            bangumi_user_agent: String::new(),
+            dandanplay_l1: true,
+        }
+    }
 }
 
 /// `[model]` 段：OpenAI 兼容端点三要素 + 护栏（对应 nipa-agent 的

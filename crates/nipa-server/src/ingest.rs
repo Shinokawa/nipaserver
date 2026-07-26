@@ -25,6 +25,7 @@ pub async fn ingest_result(
     let original_title = result["original_title"].as_str();
     let year = result["year"].as_i64();
     let air_date = result["air_date"].as_str();
+    let image_url = result["image_url"].as_str();
     let ids = &result["ids"];
 
     let mut tx = db.begin().await?;
@@ -75,8 +76,73 @@ pub async fn ingest_result(
             .execute(&mut *tx)
             .await?;
     }
+
+    // 海报回填：结论携带 image_url（弹弹play 命中）时写到顶层实体
+    // （series/movie）；不覆盖已有海报。TODO(M2b): Bangumi/TMDB 海报补拉。
+    if let Some(url) = image_url {
+        let top_id = top_ancestor(&mut tx, leaf_id).await?;
+        sqlx::query(
+            "UPDATE items SET poster_path = ? WHERE id = ? AND poster_path IS NULL",
+        )
+        .bind(url)
+        .bind(top_id)
+        .execute(&mut *tx)
+        .await?;
+    }
     tx.commit().await?;
+
+    // Bangumi 海报补拉（无 image_url 但有 bangumi id 时）——事务外做，
+    // 网络失败不影响入库。
+    if image_url.is_none()
+        && let Some(bgm_id) = ids["bangumi"].as_i64()
+    {
+        backfill_bangumi_poster(db, leaf_id, bgm_id).await;
+    }
     Ok(leaf_id)
+}
+
+/// 沿 parent 链找顶层实体（series/movie）。
+async fn top_ancestor(tx: &mut Transaction<'_, Sqlite>, mut id: i64) -> anyhow::Result<i64> {
+    loop {
+        let parent: Option<(Option<i64>,)> =
+            sqlx::query_as("SELECT parent_id FROM items WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&mut **tx)
+                .await?;
+        match parent {
+            Some((Some(p),)) => id = p,
+            _ => return Ok(id),
+        }
+    }
+}
+
+/// Bangumi 封面直链（lain.bgm.tv 302 端点，客户端可直接引用）。
+async fn backfill_bangumi_poster(db: &SqlitePool, leaf_id: i64, bgm_id: i64) {
+    // 顶层实体
+    let mut id = leaf_id;
+    loop {
+        let parent: Option<(Option<i64>,)> =
+            match sqlx::query_as("SELECT parent_id FROM items WHERE id = ?")
+                .bind(id)
+                .fetch_optional(db)
+                .await
+            {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+        match parent {
+            Some((Some(p),)) => id = p,
+            _ => break,
+        }
+    }
+    // /v0/subjects/{id}/image?type=large 是 302 重定向端点，直接存 URL，
+    // 由前端 <img> 加载（Bangumi 允许直链）。TODO(v1.x): 本地缓存图片。
+    let url = format!("https://api.bgm.tv/v0/subjects/{bgm_id}/image?type=large");
+    let _ = sqlx::query("UPDATE items SET poster_path = ? WHERE id = ? AND poster_path IS NULL")
+        .bind(url)
+        .bind(id)
+        .execute(db)
+        .await;
 }
 
 /// 先按外部 id 锚点查、再按 (library, kind, title) 查、最后新建（§4.5 先查后并）。

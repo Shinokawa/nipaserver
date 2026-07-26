@@ -141,7 +141,55 @@ async fn main() -> anyhow::Result<()> {
     };
     let bangumi = nipa_providers::BangumiClient::new(None, bangumi_ua)
         .context("Bangumi 客户端初始化失败")?;
-    let tools = nipa_providers::build_tools(tmdb, bangumi);
+    let mut tools = nipa_providers::build_tools(tmdb, bangumi);
+
+    // ffmpeg 探测（§6.3）：可用时给 agent 加 probe_media/extract_subtitle
+    // 工具（路径限定在已配置库的根内，§8.4）。缺失时 evidence 走降级形态。
+    let ffmpeg_paths = nipa_stream::FfmpegLocator::detect();
+    match &ffmpeg_paths {
+        Some(p) => {
+            let roots: Vec<std::path::PathBuf> =
+                sqlx::query_as::<_, (String,)>("SELECT path FROM libraries")
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(p,)| std::path::PathBuf::from(p))
+                    .collect();
+            tools.extend(nipa_stream::build_stream_tools(p, roots));
+            tracing::info!(version = %p.ffmpeg_version, "ffmpeg 就绪，媒体探测工具已启用");
+        }
+        None => tracing::warn!("未找到 ffmpeg/ffprobe，L2 evidence 降级为文件名+目录形态（§6.3）"),
+    }
+
+    // 弹弹play L1（§4.1）：启动时从分发服务器拉 appSecret；失败自动降级 L2-only。
+    let dandan: Option<Arc<nipa_match::DandanClient>> = if config.providers.dandanplay_l1 {
+        match nipa_match::fetch_app_secret(concat!("nipaserver/", env!("CARGO_PKG_VERSION"))).await
+        {
+            Some(secret) => {
+                let auth = nipa_match::DandanAuth::Signature {
+                    app_id: nipa_match::NIPA_APP_ID.to_string(),
+                    app_secret: secret,
+                };
+                match nipa_match::DandanClient::new(auth) {
+                    Ok(c) => {
+                        tracing::info!("弹弹play L1 就绪（签名模式）");
+                        Some(Arc::new(c))
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "弹弹play 客户端初始化失败，降级 L2-only");
+                        None
+                    }
+                }
+            }
+            None => {
+                tracing::warn!("appSecret 获取失败（分发服务器不可达），降级 L2-only");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // 刮削服务（[model] 未配置时为 None，capabilities.ai_scrape=false）。
     let scrape =
@@ -163,6 +211,17 @@ async fn main() -> anyhow::Result<()> {
     )
     .map(Arc::new);
 
+    // 管家巡检（主动唤醒；docs/06 §2）。stop 经 patrol_cancel 传播。
+    let patrol_cancel = tokio_util::sync::CancellationToken::new();
+    if let Some(s) = &steward {
+        steward::patrol::spawn_patrol(
+            s.clone(),
+            pool.clone(),
+            events_tx.clone(),
+            patrol_cancel.clone(),
+        );
+    }
+
     let state = state::AppState {
         config: Arc::new(config.clone()),
         headless: cli.headless,
@@ -170,9 +229,21 @@ async fn main() -> anyhow::Result<()> {
         events: events_tx,
         scrape: scrape.clone(),
         steward: steward.clone(),
+        dandan,
+        ffmpeg_available: ffmpeg_paths.is_some(),
     };
 
-    let app = api::router(state).layer(TraceLayer::new_for_http());
+    // WebUI 静态伺服（rust-embed 是 M5 发布形态；开发期直接伺服 dist 目录，
+    // SPA fallback 到 index.html）。无 dist 时仅 API。
+    let webui_dist = std::path::Path::new("webui/app/dist");
+    let mut app = api::router(state);
+    if webui_dist.is_dir() && !cli.headless {
+        let serve = tower_http::services::ServeDir::new(webui_dist)
+            .fallback(tower_http::services::ServeFile::new(webui_dist.join("index.html")));
+        app = app.fallback_service(serve);
+        tracing::info!("WebUI 已挂载（webui/app/dist）");
+    }
+    let app = app.layer(TraceLayer::new_for_http());
 
     let ip: IpAddr = config
         .server
@@ -191,6 +262,7 @@ async fn main() -> anyhow::Result<()> {
         .context("HTTP 服务异常退出")?;
 
     // 停机收尾（§11）。TODO(M3/M4): kill 转码 ffmpeg 子进程、librqbit session flush。
+    patrol_cancel.cancel();
     if let Some(s) = &scrape {
         s.shutdown();
     }

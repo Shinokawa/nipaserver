@@ -1,6 +1,7 @@
 //! 管家（Steward）服务：对话上下文组装、三层记忆、SSE 桥接。
 //! 设计：docs/06-管家设计.md。
 
+pub mod patrol;
 pub mod tools;
 
 use std::sync::Arc;

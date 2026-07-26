@@ -22,6 +22,7 @@ serde = { workspace = true }
 sha2 = "0.10"
 thiserror = { workspace = true }
 tokio = { version = "1", features = ["sync", "time"] }
+tracing.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }
