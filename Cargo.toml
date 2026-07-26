@@ -77,7 +77,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # 字幕编码嗅探（§4.2 字幕采样转 UTF-8；nipa-stream）
-chardetng = "0.1"
+chardetng = "1.0"
 encoding_rs = "0.8"
 
 # 文件扫描与指纹（§4.1；nipa-scanner）
