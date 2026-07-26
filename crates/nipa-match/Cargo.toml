@@ -17,7 +17,7 @@ description = "弹弹play 文件识别客户端（认证双模式、match/batch�
 nipa-core = { workspace = true }
 base64 = "0.22"
 hex = "0.4"
-md-5 = "0.10"
+md-5 = "0.11"
 reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
