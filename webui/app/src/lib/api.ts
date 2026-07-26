@@ -5,6 +5,7 @@ import type {
   ChatHistoryRow,
   ChatResponse,
   ChatSession,
+  DownloadSnapshot,
   Item,
   ItemDetail,
   Library,
@@ -13,6 +14,9 @@ import type {
   PlaybackInfo,
   ResumeItem,
   SearchGroups,
+  Subscription,
+  SubscriptionInput,
+  SubscriptionPollResult,
   SystemInfo,
 } from './types';
 
@@ -156,6 +160,37 @@ export const api = {
     }),
   chatSessions: () => request<ChatSession[]>('/chat/sessions'),
   chatHistory: (id: number) => request<ChatHistoryRow[]>(`/chat/sessions/${id}/messages`),
+
+  // ===== M4：BT 下载与 Mikan RSS 订阅 =====
+  downloads: () => request<DownloadSnapshot[]>('/downloads'),
+  addDownload: (body: { source: string; save_path?: string | null }) =>
+    request<DownloadSnapshot>('/downloads', { method: 'POST', body: JSON.stringify(body) }),
+  pauseDownload: (infoHash: string) =>
+    request<DownloadSnapshot>(`/downloads/${encodeURIComponent(infoHash)}/pause`, {
+      method: 'POST',
+    }),
+  resumeDownload: (infoHash: string) =>
+    request<DownloadSnapshot>(`/downloads/${encodeURIComponent(infoHash)}/resume`, {
+      method: 'POST',
+    }),
+  deleteDownload: (infoHash: string, deleteFiles = false) =>
+    request<void>(
+      `/downloads/${encodeURIComponent(infoHash)}?delete_files=${deleteFiles ? 'true' : 'false'}`,
+      { method: 'DELETE' }
+    ),
+
+  subscriptions: () => request<Subscription[]>('/subscriptions'),
+  createSubscription: (body: SubscriptionInput) =>
+    request<Subscription>('/subscriptions', { method: 'POST', body: JSON.stringify(body) }),
+  updateSubscription: (id: number, body: SubscriptionInput) =>
+    request<Subscription>(`/subscriptions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteSubscription: (id: number) =>
+    request<void>(`/subscriptions/${id}`, { method: 'DELETE' }),
+  pollSubscription: (id: number) =>
+    request<SubscriptionPollResult>(`/subscriptions/${id}/poll`, { method: 'POST' }),
 };
 
 /**

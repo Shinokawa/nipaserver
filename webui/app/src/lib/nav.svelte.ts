@@ -1,9 +1,9 @@
-// 自写 hash 路由：#/library #/steward #/console #/settings #/item/{id} #/player/{item}/{file}
+// 自写 hash 路由：#/library #/downloads #/steward #/console #/settings #/item/{id} #/player/{item}/{file}
 // 支持 query（#/library?genre=X、#/console?task=3）
 
-export type View = 'library' | 'steward' | 'console' | 'settings' | 'item' | 'player';
+export type View = 'library' | 'downloads' | 'steward' | 'console' | 'settings' | 'item' | 'player';
 
-const VIEWS: View[] = ['library', 'steward', 'console', 'settings'];
+const VIEWS: View[] = ['library', 'downloads', 'steward', 'console', 'settings'];
 
 interface Route {
   view: View;
@@ -56,7 +56,7 @@ class Nav {
     return this.#route.query;
   }
 
-  go(v: 'library' | 'steward' | 'console' | 'settings', query?: Record<string, string>) {
+  go(v: 'library' | 'downloads' | 'steward' | 'console' | 'settings', query?: Record<string, string>) {
     location.hash = '/' + v + this.#qs(query);
   }
 

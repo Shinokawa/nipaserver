@@ -34,6 +34,7 @@ src/
     AgentTimeline.svelte    # 事件流 timeline 渲染器（SSE 实时 / 回放同构）
   views/
     LibraryView.svelte      # 媒体库（首页 sections + 海报墙）
+    DownloadsView.svelte    # BT 下载任务与 Mikan RSS 订阅管理
     ItemDetailView.svelte   # 条目详情、季/集、文件版本
     PlayerView.svelte       # Direct Play / hls.js 播放器 OSD
     StewardView.svelte      # 管家对话 + 会话历史

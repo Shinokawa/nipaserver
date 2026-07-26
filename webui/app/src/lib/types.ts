@@ -157,6 +157,56 @@ export interface ChatResponse {
   tool_events: ToolEventSnap[];
 }
 
+// ===== M4 下载与 Mikan RSS 订阅 =====
+
+export type DownloadState =
+  | 'queued'
+  | 'downloading'
+  | 'paused'
+  | 'seeding'
+  | 'completed'
+  | 'error';
+
+export interface DownloadSnapshot {
+  session_id: number;
+  info_hash: string;
+  name: string;
+  state: DownloadState;
+  progress_bytes: number;
+  total_bytes: number;
+  uploaded_bytes: number;
+  error: string | null;
+  manifest_hash: string | null;
+}
+
+export interface SubscriptionFilter {
+  subgroup_priority: string[];
+  resolution: string | null;
+  exclude_regex: string | null;
+}
+
+export interface Subscription {
+  id: number;
+  rss_url: string;
+  title: string;
+  filters: SubscriptionFilter;
+  enabled: boolean;
+  last_check: number | null;
+  last_error: string | null;
+}
+
+export interface SubscriptionInput {
+  rss_url: string;
+  title: string;
+  filters: SubscriptionFilter;
+  enabled: boolean;
+}
+
+export interface SubscriptionPollResult {
+  discovered: number;
+  added: number;
+}
+
 // ===== agent 事件协议（契约 §4，SSE 与 transcript 共用） =====
 
 export type AgentEvent =
