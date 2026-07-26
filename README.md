@@ -1,6 +1,6 @@
 # NipaServer
 
-[![CI](https://github.com/Shinokawa/nipaserver/actions/workflows/ci.yml/badge.svg)](https://github.com/Shinokawa/nipaserver/actions/workflows/ci.yml)
+[![CI](https://github.com/AimesSoft/nipaserver/actions/workflows/ci.yml/badge.svg)](https://github.com/AimesSoft/nipaserver/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 NipaServer 是面向 NipaPlay 的智能媒体服务器：扫描本地媒体库，结合弹弹play、Bangumi、TMDB 与可选 AI Agent 完成识别和刮削，并提供 WebUI、Direct Play、HLS 转码、BT 下载及 Mikan RSS 追番。
@@ -33,7 +33,7 @@ NipaServer 是面向 NipaPlay 的智能媒体服务器：扫描本地媒体库�
 ### 本地运行
 
 ```bash
-git clone --recurse-submodules https://github.com/Shinokawa/nipaserver.git
+git clone --recurse-submodules https://github.com/AimesSoft/nipaserver.git
 cd nipaserver
 cp nipaserver.example.toml nipaserver.toml
 
@@ -91,6 +91,7 @@ make run         # 开发运行
 
 ```bash
 cargo test --workspace --all-targets --locked
+cargo test --manifest-path nipa-agent/Cargo.toml --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 make fmt-check
 cd webui/app && npm ci && npm run check && npm run build
@@ -106,7 +107,7 @@ crates/nipa-providers  Bangumi/TMDB provider 与 Agent tools
 crates/nipa-stream     ffprobe、播放判定与 HLS session
 crates/nipa-download   librqbit 与 Mikan RSS
 crates/nipa-server     SQLite、业务编排与 Axum API
-nipa-agent             独立 submodule：工具调用 Agent runtime
+nipa-agent             v0.1.0 独立 submodule：工具调用 Agent runtime
 webui/app              Svelte 5 WebUI
 ```
 
@@ -136,6 +137,6 @@ webui/app              Svelte 5 WebUI
 
 ## 许可证与第三方服务
 
-本仓库代码以 [MIT License](LICENSE) 发布。`nipa-agent` 是独立 submodule，以其自身仓库许可证为准。第三方组件、服务条款与署名见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+本仓库代码以 [MIT License](LICENSE) 发布。`nipa-agent` 是固定到 `v0.1.0` 的独立 MIT submodule。第三方组件、服务条款与署名见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.

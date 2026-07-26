@@ -193,7 +193,7 @@ async fn bangumi_search_sends_ua_and_type_filter() {
         .and(path("/v0/search/subjects"))
         .and(header(
             "user-agent",
-            "AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/NipaPlay-Reload)",
+            "AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/nipaserver)",
         ))
         .and(body_partial_json(json!({
             "keyword": "葬送的芙莉莲",

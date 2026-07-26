@@ -29,7 +29,7 @@ max_total_tokens = 0
 tmdb_token = ""
 
 # Bangumi 要求可联系的 User-Agent。公开部署前建议改为项目地址或维护者联系方式。
-bangumi_user_agent = "AimesSoft/nipaserver/0.1 (https://github.com/Shinokawa/nipaserver)"
+bangumi_user_agent = "AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/nipaserver)"
 
 # 启动时尝试获取弹弹play L1 签名凭证；失败会自动降级到 L2。
 dandanplay_l1 = true

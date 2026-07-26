@@ -16,12 +16,12 @@
 
 ## 对当前实现的直接影响（已消化项）
 
-1. **播放判定**（M3 实施时照 `jf-streambuilder.md` 第 1 节伪代码实现 Rust 判定器）：
+1. **播放判定**（M3 已据 `jf-streambuilder.md` 落地 Rust 判定器）：
    - 三种 PlayMethod 的语义与优先级；DirectStream 可容忍的失败原因集合（Audio* | ContainerNotSupported | VideoCodecTagNotSupported）——换容器 remux 即可解决的都不需要重编码；
    - **测试金矿**：`reference/jellyfin/tests/Jellyfin.Model.Tests/Test Data/DeviceProfile-*.json` 有 19 份真实客户端 profile（Chrome/Safari/AndroidTV/WebOS…），直接作为 nipa-stream 判定器的测试夹具；
    - Jellyfin 10.10 的坑：http direct-stream 标注 broken，DirectStream 实际经 TranscodingProfile 的 rank 机制产生（rank.video==1 → `-c:v copy`）。
 
-2. **HLS 转码**（`jf-transcode.md`）：完整 ffmpeg 参数模板已提炼（含 `-ss` 前置快 seek、`force_key_frames` 表达式、fMP4 init segment、四平台硬件加速矩阵、HDR tone-mapping 滤镜链），M3 可直接引用。
+2. **HLS 转码**（`jf-transcode.md`）：M3 已实现 `-ss` 前置 seek、对齐关键帧、fMP4 init segment、按需转码与 seek 重启；硬件加速和 HDR tone-mapping 仍留后续版本。
 
 3. **agent 工具层**（`jf-provider-api.md` + `plugin-bangumi.md`，已在 nipa-providers 实施中）：
    - TMDB `append_to_response` 合并请求、`include_image_language=zh,null`；

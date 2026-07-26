@@ -1,7 +1,7 @@
-# nipa-agent ↔ nipaserver 接口契约 v1
+# nipa-agent ↔ nipaserver 接口契约 v1（nipa-agent 0.1.0）
 
 > 2026-07-26。双方并行开发的对齐基准；改动此文件需同步改两边。
-> nipa-agent 是独立项目（`nipa-agent/`，不在 workspace members 里），nipaserver 侧通过 path 依赖接入：`nipa-agent = { path = "../nipa-agent" }`。
+> nipa-agent 是独立版本化项目（`nipa-agent/` submodule，不在 workspace members 里），nipaserver 通过精确版本约束和本地 path 接入：`nipa-agent = { version = "=0.1.0", path = "nipa-agent" }`。发布版本以 `vX.Y.Z` 注释标签为准。
 
 ## 1. 职责边界
 
@@ -27,7 +27,7 @@
 pub struct Agent { /* ... */ }
 
 impl Agent {
-    pub fn new(cfg: AgentConfig) -> Self;
+    pub fn new(cfg: AgentConfig) -> Result<Self, AgentError>;
 
     /// 运行一次刮削任务直至终态。事件经 cfg.event_tx 实时推出；
     /// 返回值与终态事件语义一致（Completed 携带 submit_result 的参数）。
@@ -43,6 +43,7 @@ pub struct AgentConfig {
     pub result_schema: serde_json::Value,
     pub max_rounds: u32,                     // 默认 16
     pub max_total_tokens: Option<u64>,       // token 预算护栏（按 usage 累计）
+    pub max_tool_output_bytes: usize,         // 单次工具输出上限，默认 16 KiB
     pub event_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentEventEnvelope>>,
     pub cancel: tokio_util::sync::CancellationToken,
     pub task_id: String,                     // 事件信封回带，server 侧对应 scrape_tasks.id
@@ -66,10 +67,40 @@ pub enum FailReason { RoundBudgetExhausted, TokenBudgetExhausted, ApiError,
 pub enum AbortReason { UserCancelled, Shutdown }
 ```
 
+### 2.1 管家多轮对话 API
+
+`Agent` 面向必须调用 `submit_result` 的结构化刮削任务；常驻管家使用同 crate 的
+`Conversation`，允许模型以普通文本结束一轮，并把上下文持久化职责留给 server：
+
+```rust
+pub struct ConversationConfig {
+    pub provider: ModelProviderInfo,
+    pub model: String,
+    pub tools: Vec<Arc<dyn Tool>>,
+    pub max_rounds: u32,                     // 默认 12
+    pub max_tool_output_bytes: usize,         // 默认 16 KiB
+    pub event_tx: Option<UnboundedSender<AgentEventEnvelope>>,
+    pub cancel: CancellationToken,
+    pub task_id: String,
+}
+
+impl Conversation {
+    pub fn new(cfg: ConversationConfig) -> Result<Self, AgentError>;
+    pub async fn run_turn(&self, messages: Vec<ChatMessage>) -> ConversationOutcome;
+}
+
+pub struct ConversationOutcome {
+    pub reply: String,
+    pub tool_events: Vec<ToolInteraction>,
+    pub rounds_used: u32,
+    pub usage: TokenTotals,
+    pub error: Option<AgentError>,
+}
+```
+
 ## 3. Tool trait（nipaserver 在 nipa-providers 中实现）
 
 ```rust
-#[async_trait::async_trait]  // 实际实现用 RPITIT/BoxFuture，无 async-trait 依赖
 pub trait Tool: Send + Sync {
     fn name(&self) -> &str;                       // 注册重名 → panic
     fn description(&self) -> &str;
@@ -77,7 +108,8 @@ pub trait Tool: Send + Sync {
     /// 错误二分（codex FunctionCallError 设计）：
     /// - Err(ToolError::RespondToModel(msg)) → msg 作为 tool output 回喂，模型自纠错
     /// - Err(ToolError::Fatal(msg))          → 整个任务失败（FailReason::Other）
-    async fn call(&self, arguments: serde_json::Value) -> Result<ToolOutput, ToolError>;
+    fn call(&self, arguments: serde_json::Value)
+        -> BoxFuture<'_, Result<ToolOutput, ToolError>>;
 }
 
 pub struct ToolOutput {
@@ -135,5 +167,5 @@ pub enum AgentEvent {
 
 ## 6. 版本与演进
 
-- 本契约随 nipa-agent 0.1.x 生效；破坏性改动 bump minor 并更新本文件；
+- 本契约随 nipa-agent 0.1.x 生效；0.x 破坏性改动 bump minor，兼容修复 bump patch，并同步更新本文件与双方 changelog；
 - 未来回流 Flutter：`AgentEventEnvelope`/`TaskOutcome` 经 flutter_rust_bridge 直接生成 Dart 类型，字段命名保持 snake_case。

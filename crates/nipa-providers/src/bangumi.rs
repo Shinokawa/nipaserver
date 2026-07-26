@@ -1,7 +1,7 @@
 //! Bangumi API 客户端（api.bgm.tv，调研 `docs/research/metadata-sources.md` §2）。
 //!
 //! - 公开数据（搜索/条目/章节）无需认证；
-//! - **User-Agent 硬性要求**：`AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/NipaPlay-Reload)`
+//! - **User-Agent 硬性要求**：`AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/nipaserver)`
 //!   （默认 UA 会被封禁，禁止 `Bangumi/1.0`、`database` 之类）；
 //! - 节流：自限 1 req/s（官方建议 1-2 req/s）；
 //! - 缓存：搜索 6h、详情/章节 24h（TODO(v1.x) 换 SQLite api_cache，见 cache.rs）。
@@ -17,7 +17,7 @@ use crate::throttle::Throttle;
 pub const DEFAULT_BANGUMI_BASE_URL: &str = "https://api.bgm.tv";
 /// 默认 User-Agent（Bangumi 硬性要求：开发者 ID + 应用名 + 项目主页）。
 pub const DEFAULT_BANGUMI_USER_AGENT: &str =
-    "AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/NipaPlay-Reload)";
+    "AimesSoft/nipaserver/0.1 (https://github.com/AimesSoft/nipaserver)";
 const BANGUMI_RATE_PER_SEC: f64 = 1.0;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 

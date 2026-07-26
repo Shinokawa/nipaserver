@@ -5,7 +5,7 @@
 ## 开发准备
 
 ```bash
-git clone --recurse-submodules https://github.com/Shinokawa/nipaserver.git
+git clone --recurse-submodules https://github.com/AimesSoft/nipaserver.git
 cd nipaserver
 cp nipaserver.example.toml nipaserver.toml
 make setup
