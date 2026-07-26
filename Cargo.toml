@@ -83,7 +83,7 @@ encoding_rs = "0.8"
 # 文件扫描与指纹（§4.1；nipa-scanner）
 walkdir = "2"
 sha2 = "0.10"
-hmac = "0.12"
+hmac = "0.13"
 getrandom = "0.3"
 md-5 = "0.10"
 hex = "0.4"
