@@ -65,6 +65,12 @@ sqlx = { version = "0.8", features = [
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# 图片缩放（§C 图片缓存；nipa-server images.rs）
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+# HTTP 客户端（图片下载等 server 侧出站）
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
 # 字幕编码嗅探（§4.2 字幕采样转 UTF-8；nipa-stream）
 chardetng = "0.1"
 encoding_rs = "0.8"

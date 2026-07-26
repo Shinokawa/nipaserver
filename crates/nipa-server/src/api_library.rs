@@ -1,11 +1,12 @@
 //! 媒体库与条目 API（M1：§8.1 的 /libraries 与 /items 组）。
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+use crate::api_userdata::USER_ID;
 use crate::state::AppState;
 
 /// (id, name, path, kind, file_count)
@@ -137,10 +138,17 @@ async fn trigger_scan(
 struct ItemsQuery {
     library: Option<i64>,
     kind: Option<String>,
-    /// air_date | added_at | title
+    /// air_date | added_at | title | sort_name | random
     sort: Option<String>,
     air_year: Option<i32>,
     air_month: Option<u8>,
+    /// 标题/原名 LIKE（批次 B §11）
+    search: Option<String>,
+    /// genre 名（JOIN item_values）
+    genre: Option<String>,
+    /// 已看状态过滤（JOIN watch_history user 1）
+    is_played: Option<bool>,
+    is_favorite: Option<bool>,
     #[serde(default = "default_limit")]
     limit: i64,
     #[serde(default)]
@@ -165,47 +173,101 @@ struct ItemRow {
     poster_path: Option<String>,
 }
 
-/// 海报墙数据（§8.1）。默认只返回顶层实体（series/movie），episode 经详情页取。
+/// LIKE 通配符转义（用户输入是数据不是模式）。
+fn like_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
+/// 海报墙数据（§8.1 + 批次 B §11 扩参）。默认只返回顶层实体（series/movie）。
+/// 响应头 `X-Total-Count` = 同条件不分页总数（客户端无限滚动依赖）。
 async fn list_items(
     State(state): State<AppState>,
     Query(q): Query<ItemsQuery>,
-) -> Result<Json<Vec<ItemRow>>, (StatusCode, String)> {
-    let mut sql = String::from(
-        "SELECT id, kind, parent_id, title, original_title, year, season_no, episode_no,
-                air_date, poster_path
-         FROM items WHERE deleted_at IS NULL",
-    );
+) -> Result<(HeaderMap, Json<Vec<ItemRow>>), (StatusCode, String)> {
+    // WHERE 片段：全部"枚举→静态 SQL + bind"模式，用户输入不进 format!（§6.4）
+    let mut cond = String::from(" WHERE deleted_at IS NULL");
     let mut binds: Vec<String> = Vec::new();
     match &q.kind {
         Some(k) => {
-            sql.push_str(" AND kind = ?");
+            cond.push_str(" AND kind = ?");
             binds.push(k.clone());
         }
-        None => sql.push_str(" AND kind IN ('series','movie')"),
+        None => cond.push_str(" AND kind IN ('series','movie')"),
     }
     if let Some(lib) = q.library {
-        sql.push_str(" AND library_id = ?");
+        cond.push_str(" AND library_id = ?");
         binds.push(lib.to_string());
     }
     if let Some(y) = q.air_year {
         match q.air_month {
             Some(m) => {
-                sql.push_str(" AND air_date LIKE ?");
+                cond.push_str(" AND air_date LIKE ?");
                 binds.push(format!("{y:04}-{m:02}%"));
             }
             None => {
-                sql.push_str(" AND air_date LIKE ?");
+                cond.push_str(" AND air_date LIKE ?");
                 binds.push(format!("{y:04}%"));
             }
         }
     }
+    if let Some(term) = q.search.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        cond.push_str(" AND (title LIKE ? ESCAPE '\\' OR original_title LIKE ? ESCAPE '\\')");
+        let pattern = format!("%{}%", like_escape(term));
+        binds.push(pattern.clone());
+        binds.push(pattern);
+    }
+    if let Some(genre) = q.genre.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        cond.push_str(
+            " AND EXISTS (SELECT 1 FROM item_value_map m
+                          JOIN item_values v ON v.id = m.value_id
+                          WHERE m.item_id = items.id AND v.kind = 'genre' AND v.value = ?)",
+        );
+        binds.push(genre.to_string());
+    }
+    // 用户态过滤（auth 前固定 user 1）：无 watch_history 行视为未看/未收藏
+    if let Some(played) = q.is_played {
+        let frag = if played {
+            " AND EXISTS (SELECT 1 FROM watch_history w
+                          WHERE w.item_id = items.id AND w.user_id = ? AND w.played = 1)"
+        } else {
+            " AND NOT EXISTS (SELECT 1 FROM watch_history w
+                              WHERE w.item_id = items.id AND w.user_id = ? AND w.played = 1)"
+        };
+        cond.push_str(frag);
+        binds.push(USER_ID.to_string());
+    }
+    if let Some(fav) = q.is_favorite {
+        let frag = if fav {
+            " AND EXISTS (SELECT 1 FROM watch_history w
+                          WHERE w.item_id = items.id AND w.user_id = ? AND w.is_favorite = 1)"
+        } else {
+            " AND NOT EXISTS (SELECT 1 FROM watch_history w
+                              WHERE w.item_id = items.id AND w.user_id = ? AND w.is_favorite = 1)"
+        };
+        cond.push_str(frag);
+        binds.push(USER_ID.to_string());
+    }
+
+    // 总数（同条件不分页）
+    let count_sql = format!("SELECT COUNT(*) FROM items{cond}");
+    let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
+    for b in &binds {
+        count_query = count_query.bind(b);
+    }
+    let total = count_query.fetch_one(&state.db).await.map_err(internal)?;
+
     let sort = match q.sort.as_deref() {
         Some("air_date") => "air_date DESC NULLS LAST",
         Some("title") => "title ASC",
+        Some("sort_name") => "COALESCE(sort_name, title) ASC",
+        Some("random") => "RANDOM()",
         _ => "added_at DESC",
     };
-    sql.push_str(&format!(" ORDER BY {sort} LIMIT ? OFFSET ?"));
-
+    let sql = format!(
+        "SELECT id, kind, parent_id, title, original_title, year, season_no, episode_no,
+                air_date, poster_path
+         FROM items{cond} ORDER BY {sort} LIMIT ? OFFSET ?"
+    );
     let mut query = sqlx::query_as::<_, (i64, String, Option<i64>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>, Option<String>)>(&sql);
     for b in &binds {
         query = query.bind(b);
@@ -216,12 +278,21 @@ async fn list_items(
         .fetch_all(&state.db)
         .await
         .map_err(internal)?;
-    Ok(Json(
-        rows.into_iter()
-            .map(|(id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path)| ItemRow {
-                id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path,
-            })
-            .collect(),
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "X-Total-Count",
+        HeaderValue::from_str(&total.to_string()).unwrap_or(HeaderValue::from_static("0")),
+    );
+    Ok((
+        headers,
+        Json(
+            rows.into_iter()
+                .map(|(id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path)| ItemRow {
+                    id, kind, parent_id, title, original_title, year, season_no, episode_no, air_date, poster_path,
+                })
+                .collect(),
+        ),
     ))
 }
 
@@ -229,9 +300,36 @@ async fn list_items(
 struct ItemDetail {
     #[serde(flatten)]
     item: ItemRow,
+    // 批次 B §12：0005 新列
+    overview: Option<String>,
+    rating: Option<f64>,
+    backdrop_path: Option<String>,
+    series_status: Option<String>,
+    runtime_ms: Option<i64>,
+    end_date: Option<String>,
+    tagline: Option<String>,
     external_ids: Vec<(String, String)>,
+    genres: Vec<String>,
+    studios: Vec<String>,
+    people: Vec<PersonRow>,
+    user_data: UserData,
     children: Vec<ItemRow>,
     files: Vec<FileRow>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct PersonRow {
+    name: String,
+    kind: String,
+    role: Option<String>,
+    image_url: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+struct UserData {
+    position_ms: i64,
+    played: bool,
+    is_favorite: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -246,6 +344,8 @@ async fn get_item(
     Path(id): Path<i64>,
 ) -> Result<Json<ItemDetail>, (StatusCode, String)> {
     type Row = (i64, String, Option<i64>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>, Option<String>);
+    // 详情扩展列（§12）：overview/rating/backdrop + 0005 新列。
+    type ExtraRow = (Option<String>, Option<f64>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>);
     let to_item = |r: Row| ItemRow {
         id: r.0, kind: r.1, parent_id: r.2, title: r.3, original_title: r.4,
         year: r.5, season_no: r.6, episode_no: r.7, air_date: r.8, poster_path: r.9,
@@ -261,12 +361,40 @@ async fn get_item(
     let Some(row) = row else {
         return Err((StatusCode::NOT_FOUND, format!("条目 {id} 不存在")));
     };
+    let extra: ExtraRow = sqlx::query_as(
+        "SELECT overview, rating, backdrop_path, series_status, runtime_ms, end_date, tagline
+         FROM items WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(internal)?;
     let external_ids: Vec<(String, String)> =
         sqlx::query_as("SELECT provider, external_id FROM item_ids WHERE item_id = ?")
             .bind(id)
             .fetch_all(&state.db)
             .await
             .map_err(internal)?;
+    let genres = fetch_values(&state, id, "genre").await?;
+    let studios = fetch_values(&state, id, "studio").await?;
+    let people: Vec<PersonRow> = sqlx::query_as(
+        "SELECT p.name, p.kind, ip.role, p.image_url
+         FROM item_people ip JOIN people p ON p.id = ip.person_id
+         WHERE ip.item_id = ? ORDER BY ip.sort_order",
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    let user_data: Option<(Option<i64>, i64, i64)> = sqlx::query_as(
+        "SELECT position_ms, played, is_favorite FROM watch_history
+         WHERE user_id = ? AND item_id = ?",
+    )
+    .bind(USER_ID)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(internal)?;
     let children: Vec<Row> = sqlx::query_as(&format!(
         "SELECT {COLS} FROM items WHERE parent_id = ? AND deleted_at IS NULL
          ORDER BY season_no, episode_no"
@@ -284,15 +412,51 @@ async fn get_item(
     .await
     .map_err(internal)?;
 
+    let (overview, rating, backdrop_path, series_status, runtime_ms, end_date, tagline) = extra;
     Ok(Json(ItemDetail {
         item: to_item(row),
+        overview,
+        rating,
+        backdrop_path,
+        series_status,
+        runtime_ms,
+        end_date,
+        tagline,
         external_ids,
+        genres,
+        studios,
+        people,
+        user_data: user_data
+            .map(|(position_ms, played, is_favorite)| UserData {
+                position_ms: position_ms.unwrap_or(0),
+                played: played != 0,
+                is_favorite: is_favorite != 0,
+            })
+            .unwrap_or_default(),
         children: children.into_iter().map(to_item).collect(),
         files: files
             .into_iter()
             .map(|(id, rel_path, size)| FileRow { id, rel_path, size })
             .collect(),
     }))
+}
+
+/// item_values 取某类值列表（genre/studio）。
+async fn fetch_values(
+    state: &AppState,
+    item_id: i64,
+    kind: &str,
+) -> Result<Vec<String>, (StatusCode, String)> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT v.value FROM item_value_map m JOIN item_values v ON v.id = m.value_id
+         WHERE m.item_id = ? AND v.kind = ? ORDER BY v.value",
+    )
+    .bind(item_id)
+    .bind(kind)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    Ok(rows.into_iter().map(|(v,)| v).collect())
 }
 
 #[derive(Debug, Serialize)]

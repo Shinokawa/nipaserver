@@ -4,12 +4,15 @@
 
 mod api;
 mod api_library;
+mod api_userdata;
 mod db;
+mod images;
 mod ingest;
 mod scan;
 mod scrape;
 mod state;
 mod steward;
+mod userdata;
 
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -231,6 +234,11 @@ async fn main() -> anyhow::Result<()> {
         steward: steward.clone(),
         dandan,
         ffmpeg_available: ffmpeg_paths.is_some(),
+        http: reqwest::Client::builder()
+            .timeout(Duration::from_secs(20))
+            .user_agent(concat!("nipaserver/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .context("构建 HTTP 客户端失败")?,
     };
 
     // WebUI 静态伺服（rust-embed 是 M5 发布形态；开发期直接伺服 dist 目录，

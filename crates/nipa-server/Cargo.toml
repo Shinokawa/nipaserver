@@ -30,3 +30,5 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tokio-util = "0.7.19"
+image = { workspace = true }
+reqwest = { workspace = true }

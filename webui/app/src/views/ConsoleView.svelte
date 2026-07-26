@@ -3,6 +3,7 @@
   // + 事件流 timeline（SSE scrape 按 task_id 分组）+ 待确认卡（docs/05 §4.3）
   import { onMount, tick } from 'svelte';
   import { api } from '../lib/api';
+  import { nav } from '../lib/nav.svelte';
   import { sse } from '../lib/sse.svelte';
   import type { PendingTask } from '../lib/types';
   import { confidenceBadge, artClass } from '../lib/format';
@@ -25,6 +26,9 @@
   }
 
   onMount(() => {
+    // #/console?task=N（详情页“识别信息”入口）→ 选中该任务
+    const taskParam = nav.query.task;
+    if (taskParam && /^\d+$/.test(taskParam)) selectedTask = Number(taskParam);
     loadPending();
     const t = setInterval(loadPending, 15_000);
     const un = sse.subscribe(async (msg) => {

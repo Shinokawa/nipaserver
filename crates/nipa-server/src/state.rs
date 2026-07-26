@@ -21,4 +21,6 @@ pub struct AppState {
     pub dandan: Option<Arc<nipa_match::DandanClient>>,
     /// ffmpeg 是否可用（§6.3 降级矩阵；capabilities 上报）。
     pub ffmpeg_available: bool,
+    /// server 侧出站 HTTP（图片下载等）。
+    pub http: reqwest::Client,
 }

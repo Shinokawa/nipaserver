@@ -99,6 +99,39 @@ pub fn result_schema() -> serde_json::Value {
                 },
                 "description": "填入所有已核实的 id，能查到的都要填"
             },
+            "overview": {
+                "type": "string",
+                "description": "作品简介（从 provider 详情获取后一并提交，查不到可省略）"
+            },
+            "genres": {
+                "type": "array", "items": {"type": "string"},
+                "description": "类型标签，如 [\"科幻\", \"日常\"]（provider 详情可得时提交，查不到可省略）"
+            },
+            "studios": {
+                "type": "array", "items": {"type": "string"},
+                "description": "制作公司/动画工作室（provider 详情可得时提交，查不到可省略）"
+            },
+            "air_date": {
+                "type": "string",
+                "description": "首播日期 YYYY-MM-DD（本集/本片；provider 详情可得时提交，查不到可省略）"
+            },
+            "runtime_minutes": {
+                "type": "integer",
+                "description": "单集/影片时长（分钟；provider 详情可得时提交，查不到可省略）"
+            },
+            "people": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "kind": {"type": "string", "enum": ["actor", "director", "writer"]},
+                        "role": {"type": "string", "description": "配音角色名/职位描述"}
+                    },
+                    "required": ["name", "kind"]
+                },
+                "description": "主要演职员（声优 kind=actor、role=角色名；从 provider 详情获取后一并提交，查不到可省略）"
+            },
             "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
             "reasoning": {"type": "string", "description": "一句话依据"}
         },

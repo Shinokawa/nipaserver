@@ -17,6 +17,48 @@ export function fmtDuration(ms: number): string {
   return ms + 'ms';
 }
 
+/** 片长 "2h 15m" / "45m" 格式（Jellyfin meta 行同款） */
+export function fmtRuntime(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return '';
+  const totalMin = Math.round(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
+
+/** 系列年份区间："2019 至今"（Continuing）/ "2019 - 2021"（Ended）/ "2019" */
+export function fmtYearSpan(
+  year: number | null | undefined,
+  seriesStatus: string | null | undefined,
+  endDate: string | null | undefined
+): string {
+  if (!year) return '';
+  const status = (seriesStatus ?? '').toLowerCase();
+  if (status === 'continuing') return `${year} 至今`;
+  const endYear = endDate ? Number(endDate.slice(0, 4)) : null;
+  if (endYear && !Number.isNaN(endYear) && endYear !== year) return `${year} - ${endYear}`;
+  return String(year);
+}
+
+/** 剩余分钟（继续播放按钮："继续 · 剩余 X 分钟"） */
+export function remainingMinutes(
+  runtimeMs: number | null | undefined,
+  positionMs: number | null | undefined
+): number | null {
+  if (!runtimeMs || !positionMs || positionMs <= 0 || positionMs >= runtimeMs) return null;
+  return Math.max(1, Math.round((runtimeMs - positionMs) / 60_000));
+}
+
+/** 进度百分比 0-100（clamp；无效输入返回 0） */
+export function progressPct(
+  positionMs: number | null | undefined,
+  durationMs: number | null | undefined
+): number {
+  if (!positionMs || !durationMs || durationMs <= 0) return 0;
+  return Math.min(100, Math.max(0, (positionMs / durationMs) * 100));
+}
+
 export function fmtTime(unixSec: number): string {
   const d = new Date(unixSec * 1000);
   const today = new Date();

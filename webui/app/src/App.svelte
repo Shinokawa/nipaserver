@@ -4,13 +4,17 @@
   import { sse } from './lib/sse.svelte';
   import { api } from './lib/api';
   import type { SystemInfo } from './lib/types';
+  import { toast } from './lib/toast.svelte';
   import LibraryView from './views/LibraryView.svelte';
   import StewardView from './views/StewardView.svelte';
   import ConsoleView from './views/ConsoleView.svelte';
   import SettingsView from './views/SettingsView.svelte';
+  import ItemDetailView from './views/ItemDetailView.svelte';
+  import SearchOverlay from './components/SearchOverlay.svelte';
 
   let sysInfo = $state<SystemInfo | null>(null);
   let pendingCount = $state(0);
+  let searchOpen = $state(false);
 
   onMount(() => {
     sse.connect();
@@ -21,6 +25,10 @@
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
         e.preventDefault();
         nav.go('steward');
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchOpen = !searchOpen;
       }
     };
     window.addEventListener('keydown', onKey);
@@ -34,7 +42,7 @@
     api.scrapePending().then((p) => (pendingCount = p.length)).catch(() => {});
   }
 
-  const navItems: { v: View; label: string }[] = [
+  const navItems: { v: Exclude<View, 'item'>; label: string }[] = [
     { v: 'library', label: '媒体库' },
     { v: 'steward', label: '管家' },
     { v: 'console', label: 'Agent 控制台' },
@@ -56,7 +64,7 @@
     {#each navItems as item (item.v)}
       <div
         class="nav-item"
-        class:active={nav.view === item.v}
+        class:active={nav.view === item.v || (item.v === 'library' && nav.view === 'item')}
         role="button"
         tabindex="0"
         onclick={() => nav.go(item.v)}
@@ -96,7 +104,13 @@
   <div class="main">
     <!-- ============ 顶栏 ============ -->
     <div class="topbar">
-      <div class="search">
+      <div
+        class="search"
+        role="button"
+        tabindex="0"
+        onclick={() => (searchOpen = true)}
+        onkeydown={(e) => e.key === 'Enter' && (searchOpen = true)}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         搜索条目、文件、设置…
         <kbd>⌘K</kbd>
@@ -125,6 +139,10 @@
 
     {#if nav.view === 'library'}
       <LibraryView />
+    {:else if nav.view === 'item' && nav.itemId !== null}
+      {#key nav.itemId}
+        <ItemDetailView itemId={nav.itemId} />
+      {/key}
     {:else if nav.view === 'steward'}
       <StewardView />
     {:else if nav.view === 'console'}
@@ -134,6 +152,18 @@
     {/if}
   </div>
 </div>
+
+{#if searchOpen}
+  <SearchOverlay onclose={() => (searchOpen = false)} />
+{/if}
+
+{#if toast.list.length}
+  <div class="toast-stack">
+    {#each toast.list as t (t.id)}
+      <div class="toast t-{t.kind}">{t.msg}</div>
+    {/each}
+  </div>
+{/if}
 
 {#if nav.view !== 'steward'}
   <button class="steward-fab" onclick={() => nav.go('steward')}>

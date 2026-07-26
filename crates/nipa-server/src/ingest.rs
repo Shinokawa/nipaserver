@@ -47,10 +47,17 @@ pub async fn ingest_result(
             )
             .await?;
             let season = find_or_create_season(&mut tx, library_id, series, season_no).await?;
-            find_or_create_episode(
+            let episode = find_or_create_episode(
                 &mut tx, library_id, season, title, season_no, episode_no, air_date,
             )
-            .await?
+            .await?;
+            // series_id 冗余列回填（0005；next-up/resume 免两跳 JOIN）
+            sqlx::query("UPDATE items SET series_id = ? WHERE id = ? AND series_id IS NULL")
+                .bind(series)
+                .bind(episode)
+                .execute(&mut *tx)
+                .await?;
+            episode
         }
         _ => {
             // unknown：挂一个 movie 形态的占位节点（可在 UI 改正）
@@ -77,6 +84,9 @@ pub async fn ingest_result(
             .await?;
     }
 
+    // 批次 A 收尾：provider 详情元数据落库（docs/07；一次识别拿全）。
+    apply_metadata(&mut tx, leaf_id, result).await?;
+
     // 海报回填：结论携带 image_url（弹弹play 命中）时写到顶层实体
     // （series/movie）；不覆盖已有海报。TODO(M2b): Bangumi/TMDB 海报补拉。
     if let Some(url) = image_url {
@@ -99,6 +109,135 @@ pub async fn ingest_result(
         backfill_bangumi_poster(db, leaf_id, bgm_id).await;
     }
     Ok(leaf_id)
+}
+
+/// 批次 A 收尾：把结论中的 provider 详情元数据合并进 items 树。
+///
+/// - overview/genres/studios/people 描述作品 → 写顶层实体（series/movie）；
+/// - air_date/runtime_minutes 描述本集/本片 → 写叶子；
+/// - sort_name 用 title 兜底（拼音/罗马音由后续刮削升级写入）；
+/// - 全程"不覆盖已有值"（保守合并，与海报回填同策略）；
+/// - date_modified=unixepoch 标记元数据变更时间。
+async fn apply_metadata(
+    tx: &mut Transaction<'_, Sqlite>,
+    leaf_id: i64,
+    result: &Value,
+) -> anyhow::Result<()> {
+    let top_id = top_ancestor(tx, leaf_id).await?;
+
+    // 叶子：air_date（结论顶层 air_date 已在建树时写入，这里兜底）+ runtime_ms
+    let runtime_ms = result["runtime_minutes"].as_i64().map(|m| m * 60_000);
+    sqlx::query(
+        "UPDATE items SET
+           air_date = COALESCE(air_date, ?),
+           runtime_ms = COALESCE(runtime_ms, ?),
+           date_modified = unixepoch()
+         WHERE id = ?",
+    )
+    .bind(result["air_date"].as_str())
+    .bind(runtime_ms)
+    .bind(leaf_id)
+    .execute(&mut **tx)
+    .await?;
+
+    // 顶层：overview + sort_name（title 兜底）
+    sqlx::query(
+        "UPDATE items SET
+           overview = COALESCE(overview, ?),
+           sort_name = COALESCE(sort_name, title),
+           date_modified = unixepoch()
+         WHERE id = ?",
+    )
+    .bind(result["overview"].as_str())
+    .bind(top_id)
+    .execute(&mut **tx)
+    .await?;
+
+    // genres/studios → item_values + item_value_map（find-or-create）
+    for (kind, key) in [("genre", "genres"), ("studio", "studios")] {
+        if let Some(values) = result[key].as_array() {
+            for v in values.iter().filter_map(Value::as_str) {
+                let v = v.trim();
+                if v.is_empty() {
+                    continue;
+                }
+                attach_item_value(tx, top_id, kind, v).await?;
+            }
+        }
+    }
+
+    // people → people + item_people（find-or-create；kind 白名单外归 other）
+    if let Some(people) = result["people"].as_array() {
+        for (order, p) in people.iter().enumerate() {
+            let Some(name) = p["name"].as_str().map(str::trim).filter(|n| !n.is_empty()) else {
+                continue;
+            };
+            let kind = p["kind"]
+                .as_str()
+                .filter(|k| matches!(*k, "actor" | "director" | "writer"))
+                .unwrap_or("other");
+            let person_id = sqlx::query_scalar::<_, i64>(
+                "INSERT INTO people (name, kind) VALUES (?, ?)
+                 ON CONFLICT(name, kind) DO UPDATE SET name = excluded.name
+                 RETURNING id",
+            )
+            .bind(name)
+            .bind(kind)
+            .fetch_one(&mut **tx)
+            .await?;
+            // item_people PK 含 role；role 为 NULL 时 SQLite PK 不去重，先查后插
+            let role = p["role"].as_str();
+            let exists: Option<(i64,)> = sqlx::query_as(
+                "SELECT 1 FROM item_people
+                 WHERE item_id = ? AND person_id = ? AND role IS ?",
+            )
+            .bind(top_id)
+            .bind(person_id)
+            .bind(role)
+            .fetch_optional(&mut **tx)
+            .await?;
+            if exists.is_none() {
+                sqlx::query(
+                    "INSERT INTO item_people (item_id, person_id, role, sort_order)
+                     VALUES (?, ?, ?, ?)",
+                )
+                .bind(top_id)
+                .bind(person_id)
+                .bind(role)
+                .bind(order as i64)
+                .execute(&mut **tx)
+                .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// item_values find-or-create + 挂载映射。
+async fn attach_item_value(
+    tx: &mut Transaction<'_, Sqlite>,
+    item_id: i64,
+    kind: &str,
+    value: &str,
+) -> anyhow::Result<()> {
+    let value_id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO item_values (kind, value) VALUES (?, ?)
+         ON CONFLICT(kind, value) DO UPDATE SET value = excluded.value
+         RETURNING id",
+    )
+    .bind(kind)
+    .bind(value)
+    .fetch_one(&mut **tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO item_value_map (item_id, value_id) VALUES (?, ?)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(item_id)
+    .bind(value_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 /// 沿 parent 链找顶层实体（series/movie）。
