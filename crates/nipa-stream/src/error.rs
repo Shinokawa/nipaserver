@@ -10,6 +10,11 @@ use thiserror::Error;
 /// nipa-stream 统一错误。
 #[derive(Debug, Error)]
 pub enum StreamError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    Other(String),
     /// 子进程无法启动（二进制缺失/无执行权限）。
     #[error("无法启动 {program}：{source}")]
     Spawn {

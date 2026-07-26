@@ -149,13 +149,9 @@
 
   function onPlay() {
     if (detail?.files?.length) {
-      const p = detail.files[0].rel_path;
-      navigator.clipboard
-        ?.writeText(p)
-        .then(() => toast.show(`已复制文件路径：${p.length > 48 ? p.slice(0, 48) + '…' : p}`, 'good'))
-        .catch(() => toast.show('播放功能 M3 到来', 'info'));
+      nav.goPlayer(detail.id, detail.files[0].id);
     } else {
-      toast.show('播放功能 M3 到来', 'info');
+      toast.show('这个条目还没有可播放文件', 'warn');
     }
   }
 
@@ -418,6 +414,7 @@
             <div class="file-row">
               <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{f.rel_path}</span>
               <span class="fsize">{fmtSize(f.size)}</span>
+              <button class="btn btn-ghost btn-sm" onclick={() => nav.goPlayer(detail!.id, f.id)}>播放此版本</button>
             </div>
           {/each}
         </div>

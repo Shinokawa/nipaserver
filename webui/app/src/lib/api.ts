@@ -10,6 +10,7 @@ import type {
   Library,
   NextUpItem,
   PendingTask,
+  PlaybackInfo,
   ResumeItem,
   SearchGroups,
   SystemInfo,
@@ -83,6 +84,12 @@ export const api = {
     requestList<Item>(`/items${qs(params as Record<string, unknown>)}`),
   item: (id: number) => request<ItemDetail>(`/items/${id}`),
 
+  playbackInfo: (fileId: number) =>
+    request<PlaybackInfo>('/playback/info', {
+      method: 'POST',
+      body: JSON.stringify({ file_id: fileId, device_profile: { client: 'web' } }),
+    }),
+
   // ===== 批次 B：首页 sections =====
   resume: () => request<ResumeItem[]>('/items/resume'),
   nextUp: () => request<NextUpItem[]>('/shows/next-up'),
@@ -117,10 +124,22 @@ export const api = {
     request<unknown>(`/items/${id}/played`, { method: played ? 'POST' : 'DELETE' }),
   setFavorite: (id: number, fav: boolean) =>
     request<unknown>(`/items/${id}/favorite`, { method: fav ? 'POST' : 'DELETE' }),
-  reportProgress: (itemId: number, positionMs: number) =>
+  reportProgress: (
+    itemId: number,
+    fileId: number,
+    positionMs: number,
+    durationMs: number | null,
+    event: 'start' | 'progress' | 'stop'
+  ) =>
     request<unknown>('/playback/progress', {
       method: 'POST',
-      body: JSON.stringify({ item_id: itemId, position_ms: positionMs }),
+      body: JSON.stringify({
+        item_id: itemId,
+        file_id: fileId,
+        position_ms: positionMs,
+        duration_ms: durationMs,
+        event,
+      }),
     }),
 
   scrapePending: () => request<PendingTask[]>('/scrape/pending'),

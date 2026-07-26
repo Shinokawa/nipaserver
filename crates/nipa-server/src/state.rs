@@ -21,6 +21,14 @@ pub struct AppState {
     pub dandan: Option<Arc<nipa_match::DandanClient>>,
     /// ffmpeg 是否可用（§6.3 降级矩阵；capabilities 上报）。
     pub ffmpeg_available: bool,
+    /// ffprobe 路径，PlaybackInfo 在数据库无探测缓存时按需补探测。
+    pub ffmpeg_paths: Option<Arc<nipa_stream::FfmpegPaths>>,
+    /// 流媒体临时 URL 签名密钥（进程启动时生成）。
+    pub stream_tokens: crate::stream_token::StreamTokenKey,
+    /// ffmpeg 可用时的按需 HLS session manager。
+    pub hls: Option<nipa_stream::HlsManager>,
     /// server 侧出站 HTTP（图片下载等）。
     pub http: reqwest::Client,
+    /// BT 下载会话；None = librqbit 初始化失败，其余服务继续可用。
+    pub downloads: Option<Arc<nipa_download::DownloadService>>,
 }

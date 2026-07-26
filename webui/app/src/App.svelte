@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { nav, type View } from './lib/nav.svelte';
+  import { nav } from './lib/nav.svelte';
   import { sse } from './lib/sse.svelte';
   import { api } from './lib/api';
   import type { SystemInfo } from './lib/types';
@@ -10,6 +10,7 @@
   import ConsoleView from './views/ConsoleView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import ItemDetailView from './views/ItemDetailView.svelte';
+  import PlayerView from './views/PlayerView.svelte';
   import SearchOverlay from './components/SearchOverlay.svelte';
 
   let sysInfo = $state<SystemInfo | null>(null);
@@ -42,7 +43,7 @@
     api.scrapePending().then((p) => (pendingCount = p.length)).catch(() => {});
   }
 
-  const navItems: { v: Exclude<View, 'item'>; label: string }[] = [
+  const navItems: { v: 'library' | 'steward' | 'console'; label: string }[] = [
     { v: 'library', label: '媒体库' },
     { v: 'steward', label: '管家' },
     { v: 'console', label: 'Agent 控制台' },
@@ -54,7 +55,7 @@
   );
 </script>
 
-<div class="app">
+<div class="app" class:player-mode={nav.view === 'player'}>
   <!-- ============ 侧边栏 ============ -->
   <nav class="sidebar">
     <div class="logo">
@@ -103,7 +104,8 @@
 
   <div class="main">
     <!-- ============ 顶栏 ============ -->
-    <div class="topbar">
+    {#if nav.view !== 'player'}
+      <div class="topbar">
       <div
         class="search"
         role="button"
@@ -135,9 +137,14 @@
         {#if pendingCount > 0}<span class="b-dot"></span>{/if}
       </div>
       <div class="avatar">S</div>
-    </div>
+      </div>
+    {/if}
 
-    {#if nav.view === 'library'}
+    {#if nav.view === 'player' && nav.itemId !== null && nav.fileId !== null}
+      {#key `${nav.itemId}:${nav.fileId}`}
+        <PlayerView itemId={nav.itemId} fileId={nav.fileId} />
+      {/key}
+    {:else if nav.view === 'library'}
       <LibraryView />
     {:else if nav.view === 'item' && nav.itemId !== null}
       {#key nav.itemId}
@@ -165,7 +172,7 @@
   </div>
 {/if}
 
-{#if nav.view !== 'steward'}
+{#if nav.view !== 'steward' && nav.view !== 'player'}
   <button class="steward-fab" onclick={() => nav.go('steward')}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a7 7 0 017 7v1.5a3.5 3.5 0 01-3.5 3.5h-7A3.5 3.5 0 015 11.5V10a7 7 0 017-7z"/><path d="M8 21c1-1.5 2.5-2 4-2s3 .5 4 2"/></svg>
     召唤管家

@@ -55,7 +55,12 @@ fn fixture_mkv(paths: &FfmpegPaths) -> &'static PathBuf {
         let mkv = dir.join("fixture.mkv");
         let status = Command::new(&paths.ffmpeg)
             .args(["-v", "error", "-y"])
-            .args(["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10:duration=2"])
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=320x240:rate=10:duration=2",
+            ])
             .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=2"])
             .arg("-i")
             .arg(&srt)
@@ -149,7 +154,10 @@ async fn subtitle_roundtrip_preserves_chinese_dialogue() {
     let text = nipa_stream::extract_subtitle_text(&paths.ffmpeg, mkv, 2, &[(0.0, 2.0)])
         .await
         .unwrap();
-    assert!(text.contains("第一句：欢迎来到测试世界"), "抽取结果：{text}");
+    assert!(
+        text.contains("第一句：欢迎来到测试世界"),
+        "抽取结果：{text}"
+    );
     assert!(text.contains("第二句：字幕抽取往返验证"));
     assert!(text.contains("Third line in English"));
     // SRT 结构应已剥净。
@@ -230,7 +238,11 @@ async fn extract_subtitle_tool_returns_dialogue() {
     )
     .await
     .unwrap();
-    assert!(out.content.contains("欢迎来到测试世界"), "输出：{}", out.content);
+    assert!(
+        out.content.contains("欢迎来到测试世界"),
+        "输出：{}",
+        out.content
+    );
 
     // 显式 position 也要工作。
     let out = call_tool(
@@ -276,13 +288,9 @@ async fn tools_reject_paths_outside_allowed_roots() {
     let tools = build_stream_tools(paths, vec![other_root]);
 
     for tool_name in ["probe_media", "extract_subtitle"] {
-        let err = call_tool(
-            &tools,
-            tool_name,
-            json!({ "path": mkv, "stream_index": 2 }),
-        )
-        .await
-        .unwrap_err();
+        let err = call_tool(&tools, tool_name, json!({ "path": mkv, "stream_index": 2 }))
+            .await
+            .unwrap_err();
         match err {
             nipa_agent::ToolError::RespondToModel(msg) => {
                 assert!(msg.contains("不在允许的媒体库目录"), "{tool_name}: {msg}")
@@ -300,7 +308,11 @@ async fn tools_reject_dotdot_traversal() {
     std::fs::create_dir_all(&root).unwrap();
     let tools = build_stream_tools(paths, vec![root.clone()]);
     // root/../fixture.mkv canonicalize 后逃出 root。
-    let sneaky = format!("{}/../{}", root.display(), mkv.file_name().unwrap().to_str().unwrap());
+    let sneaky = format!(
+        "{}/../{}",
+        root.display(),
+        mkv.file_name().unwrap().to_str().unwrap()
+    );
     let err = call_tool(&tools, "probe_media", json!({ "path": sneaky }))
         .await
         .unwrap_err();
@@ -335,11 +347,7 @@ async fn graphic_subtitle_rejected_by_tool() {
 
     // probe：判为图形字幕。
     let result = nipa_stream::probe(&paths.ffprobe, &gfx).await.unwrap();
-    let track = result
-        .summary
-        .subtitle_tracks
-        .first()
-        .expect("应有字幕轨");
+    let track = result.summary.subtitle_tracks.first().expect("应有字幕轨");
     assert!(!track.is_text, "dvd_subtitle 应判为图形字幕");
     let index = track.index;
 
@@ -347,7 +355,10 @@ async fn graphic_subtitle_rejected_by_tool() {
     let err = nipa_stream::extract_subtitle_text(&paths.ffmpeg, &gfx, index, &[(0.0, 1.0)])
         .await
         .unwrap_err();
-    assert!(matches!(err, StreamError::GraphicSubtitle { .. }), "得到 {err}");
+    assert!(
+        matches!(err, StreamError::GraphicSubtitle { .. }),
+        "得到 {err}"
+    );
 
     // 工具层：RespondToModel 且信息可读。
     let tools = build_stream_tools(paths, vec![dir]);
@@ -364,4 +375,62 @@ async fn graphic_subtitle_rejected_by_tool() {
         }
         other => panic!("期望 RespondToModel，得到 {other:?}"),
     }
+}
+
+/// M3 纵切验证：完整 playlist 立即可得；请求远端 segment 后再回 seek
+/// 到 0，manager 会 kill/restart ffmpeg 并按需产出新段。
+#[tokio::test]
+async fn hls_on_demand_seek_roundtrip() {
+    let paths = require_ffmpeg!();
+    let dir = std::env::temp_dir().join(format!("nipa-hls-it-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("source.mp4");
+    let status = Command::new(&paths.ffmpeg)
+        .args(["-v", "error", "-y"])
+        .args(["-f", "lavfi", "-i", "color=c=blue:s=160x90:r=10:d=44"])
+        .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=44"])
+        .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "40"])
+        .args(["-c:a", "aac", "-shortest"])
+        .arg(&source)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let manager = nipa_stream::HlsManager::new(paths, nipa_stream::HlsConfig::default()).unwrap();
+    let id = manager
+        .create_session(nipa_stream::HlsSessionSpec {
+            source,
+            duration_secs: 44.0,
+            method: nipa_stream::PlayMethod::Transcode,
+        })
+        .await
+        .unwrap();
+    let playlist = manager.playlist(&id, "exp=1&sig=test").await.unwrap();
+    assert_eq!(playlist.matches("#EXTINF:").count(), 11);
+
+    let seeked = manager.segment(&id, 9).await.unwrap();
+    assert!(!seeked.bytes.is_empty());
+    let beginning = manager.segment(&id, 0).await.unwrap();
+    assert!(!beginning.bytes.is_empty());
+    let init = manager.segment(&id, -1).await.unwrap();
+    assert!(init.bytes.len() > 100);
+
+    let remux_id = manager
+        .create_session(nipa_stream::HlsSessionSpec {
+            source: dir.join("source.mp4"),
+            duration_secs: 44.0,
+            method: nipa_stream::PlayMethod::Remux,
+        })
+        .await
+        .unwrap();
+    assert!(
+        !manager
+            .segment(&remux_id, 0)
+            .await
+            .unwrap()
+            .bytes
+            .is_empty()
+    );
+    manager.shutdown().await;
+    let _ = std::fs::remove_dir_all(dir);
 }

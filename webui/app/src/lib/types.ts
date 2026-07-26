@@ -13,7 +13,32 @@ export interface SystemInfo {
     ffmpeg: boolean;
     dandanplay_l1: boolean;
     ai_scrape: boolean;
+    downloads: boolean;
   };
+}
+
+export type ClientKind = 'web' | 'nipa';
+
+export interface PlaybackMediaSource {
+  id: number;
+  name: string;
+  size: number | null;
+  container: string;
+  video_codec: string | null;
+  audio_codec: string | null;
+  runtime_ticks: number | null;
+  supports_direct_play: boolean;
+  supports_direct_stream: boolean;
+  supports_transcoding: boolean;
+  transcode_reasons: string[];
+  direct_url: string | null;
+  transcode_url: string | null;
+}
+
+export interface PlaybackInfo {
+  media_sources: PlaybackMediaSource[];
+  play_session_id: string | null;
+  error_code: string | null;
 }
 
 export interface Library {

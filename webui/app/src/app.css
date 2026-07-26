@@ -43,6 +43,8 @@ body::before {
 
 /* ========== 布局骨架 ========== */
 .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; position: relative; z-index: 1; }
+.app.player-mode { display: block; }
+.app.player-mode > .sidebar { display: none; }
 .sidebar {
   border-right: 1px solid var(--hairline);
   padding: 20px 12px;

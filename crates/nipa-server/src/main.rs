@@ -3,7 +3,9 @@
 //! 里程碑 M0 骨架（开发文档 §12）。
 
 mod api;
+mod api_download;
 mod api_library;
+mod api_playback;
 mod api_userdata;
 mod db;
 mod images;
@@ -12,6 +14,7 @@ mod scan;
 mod scrape;
 mod state;
 mod steward;
+mod stream_token;
 mod userdata;
 
 use std::net::{IpAddr, SocketAddr};
@@ -43,7 +46,9 @@ fn load_config() -> anyhow::Result<ServerConfig> {
         .unwrap_or_else(|_| PathBuf::from("./nipaserver.toml"));
     let (mut config, from_file) = ServerConfig::load_file(&path)
         .with_context(|| format!("加载配置 {} 失败", path.display()))?;
-    config.apply_env_overrides().context("应用环境变量覆盖失败")?;
+    config
+        .apply_env_overrides()
+        .context("应用环境变量覆盖失败")?;
     // tracing 尚未初始化，先用 eprintln 提示配置来源。
     if !from_file {
         eprintln!(
@@ -102,6 +107,18 @@ async fn main() -> anyhow::Result<()> {
     // SQLite（WAL、外键）+ 迁移。
     let pool = db::open(&config.server.data_dir).await?;
 
+    // BT 会话（持久化 + fastresume）。初始化失败时降级，不阻断媒体服务。
+    let downloads = match nipa_download::DownloadService::start(&config.server.data_dir).await {
+        Ok(service) => {
+            tracing::info!(path = %service.output_dir().display(), "librqbit download session ready");
+            Some(service)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "librqbit initialization failed; download APIs disabled");
+            None
+        }
+    };
+
     // SSE 事件总线（§2.1 SQ/EQ 风格；§8.1 /events）。
     let (events_tx, _) = broadcast::channel::<EventMsg>(256);
 
@@ -142,8 +159,8 @@ async fn main() -> anyhow::Result<()> {
     } else {
         Some(config.providers.bangumi_user_agent.clone())
     };
-    let bangumi = nipa_providers::BangumiClient::new(None, bangumi_ua)
-        .context("Bangumi 客户端初始化失败")?;
+    let bangumi =
+        nipa_providers::BangumiClient::new(None, bangumi_ua).context("Bangumi 客户端初始化失败")?;
     let mut tools = nipa_providers::build_tools(tmdb, bangumi);
 
     // ffmpeg 探测（§6.3）：可用时给 agent 加 probe_media/extract_subtitle
@@ -164,6 +181,17 @@ async fn main() -> anyhow::Result<()> {
         }
         None => tracing::warn!("未找到 ffmpeg/ffprobe，L2 evidence 降级为文件名+目录形态（§6.3）"),
     }
+
+    // HLS manager 只在 ffmpeg 完整可用时启用；创建失败不影响 Direct Play。
+    let hls = ffmpeg_paths.as_ref().and_then(|paths| {
+        match nipa_stream::HlsManager::new(paths, nipa_stream::HlsConfig::default()) {
+            Ok(manager) => Some(manager),
+            Err(error) => {
+                tracing::warn!(%error, "HLS session manager 初始化失败，降级为 Direct Play");
+                None
+            }
+        }
+    });
 
     // 弹弹play L1（§4.1）：启动时从分发服务器拉 appSecret；失败自动降级 L2-only。
     let dandan: Option<Arc<nipa_match::DandanClient>> = if config.providers.dandanplay_l1 {
@@ -195,8 +223,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // 刮削服务（[model] 未配置时为 None，capabilities.ai_scrape=false）。
-    let scrape =
-        scrape::ScrapeService::start(&config.model, tools.clone(), pool.clone(), events_tx.clone());
+    let scrape = scrape::ScrapeService::start(
+        &config.model,
+        tools.clone(),
+        pool.clone(),
+        events_tx.clone(),
+    );
 
     // 管家：worker 只读工具 + 管家专属工具（docs/06-管家设计.md）。
     let steward_tools = steward::tools::build_steward_tools(
@@ -234,20 +266,28 @@ async fn main() -> anyhow::Result<()> {
         steward: steward.clone(),
         dandan,
         ffmpeg_available: ffmpeg_paths.is_some(),
+        ffmpeg_paths: ffmpeg_paths.clone().map(Arc::new),
+        stream_tokens: stream_token::StreamTokenKey::generate(),
+        hls: hls.clone(),
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .user_agent(concat!("nipaserver/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("构建 HTTP 客户端失败")?,
+        downloads: downloads.clone(),
     };
+
+    let download_cancel = tokio_util::sync::CancellationToken::new();
+    api_download::spawn_background(state.clone(), download_cancel.clone());
 
     // WebUI 静态伺服（rust-embed 是 M5 发布形态；开发期直接伺服 dist 目录，
     // SPA fallback 到 index.html）。无 dist 时仅 API。
     let webui_dist = std::path::Path::new("webui/app/dist");
     let mut app = api::router(state);
     if webui_dist.is_dir() && !cli.headless {
-        let serve = tower_http::services::ServeDir::new(webui_dist)
-            .fallback(tower_http::services::ServeFile::new(webui_dist.join("index.html")));
+        let serve = tower_http::services::ServeDir::new(webui_dist).fallback(
+            tower_http::services::ServeFile::new(webui_dist.join("index.html")),
+        );
         app = app.fallback_service(serve);
         tracing::info!("WebUI 已挂载（webui/app/dist）");
     }
@@ -269,13 +309,20 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("HTTP 服务异常退出")?;
 
-    // 停机收尾（§11）。TODO(M3/M4): kill 转码 ffmpeg 子进程、librqbit session flush。
+    // 停机收尾（§11）。
+    download_cancel.cancel();
+    if let Some(service) = &downloads {
+        service.stop().await;
+    }
     patrol_cancel.cancel();
     if let Some(s) = &scrape {
         s.shutdown();
     }
     if let Some(s) = &steward {
         s.shutdown();
+    }
+    if let Some(hls) = &hls {
+        hls.shutdown().await;
     }
     if let Err(e) = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE);")
         .execute(&pool)

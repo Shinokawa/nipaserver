@@ -145,6 +145,10 @@
             <span class="k">弹弹play L1</span>
             <span class="badge {sysInfo.capabilities.dandanplay_l1 ? 'good' : ''}"><span class="bdot"></span>{sysInfo.capabilities.dandanplay_l1 ? '可用' : '未配置'}</span>
           </div>
+          <div class="kv-row">
+            <span class="k">BT 下载</span>
+            <span class="badge {sysInfo.capabilities.downloads ? 'good' : 'crit'}"><span class="bdot"></span>{sysInfo.capabilities.downloads ? 'librqbit 已就绪' : '初始化失败'}</span>
+          </div>
         {:else}
           <div class="empty" style="padding:20px 0">未连接到服务器</div>
         {/if}

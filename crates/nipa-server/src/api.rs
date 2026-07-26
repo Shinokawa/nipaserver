@@ -1,21 +1,17 @@
 //! API 路由（开发文档 §8.1，axum 0.8——路由参数语法为 `/{id}`）。
 //!
-//! M0 仅落 /system/info 与 /events 两个端点；其余端点随里程碑逐个补齐：
-//! TODO(M1): /libraries、/libraries/{id}/scan、/items…（海报墙只读 API）
-//! TODO(M2b): /scrape/pending、/scrape/pending/{id}/confirm
-//! TODO(M3): /playback/info、/stream/direct/{file_id}、/stream/hls/{session}/…
-//! TODO(M4): /downloads、/subscriptions
+//! M1–M4 已装配媒体库、刮削、播放、下载与订阅端点；剩余公共认证层：
 //! TODO(§8.4): /auth/login、角色中间件（admin / guest-readable）、SSE query token。
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::scrape::ScrapeRequest;
 use crate::state::AppState;
@@ -41,6 +37,10 @@ pub fn router(state: AppState) -> Router {
         )
         // 用户数据与首页查询（Jellyfin 对标批次 B）
         .merge(crate::api_userdata::router())
+        // 播放决策、签名 Direct Play 与 HLS（M3）
+        .merge(crate::api_playback::router())
+        // BT 下载与 Mikan RSS 订阅（M4）
+        .merge(crate::api_download::router())
         .with_state(state)
 }
 
@@ -51,6 +51,7 @@ struct Capabilities {
     ffmpeg: bool,
     dandanplay_l1: bool,
     ai_scrape: bool,
+    downloads: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +81,7 @@ async fn system_info(State(state): State<AppState>) -> Json<SystemInfo> {
             ffmpeg: state.ffmpeg_available,
             dandanplay_l1: state.dandan.is_some(),
             ai_scrape: state.scrape.is_some(),
+            downloads: state.downloads.is_some(),
         },
     })
 }
@@ -233,7 +235,11 @@ async fn chat_sessions(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, title, updated_at)| SessionRow { id, title, updated_at })
+            .map(|(id, title, updated_at)| SessionRow {
+                id,
+                title,
+                updated_at,
+            })
             .collect(),
     ))
 }
@@ -292,7 +298,11 @@ async fn steward_reports(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, report, created_at)| ReportRow { id, report, created_at })
+            .map(|(id, report, created_at)| ReportRow {
+                id,
+                report,
+                created_at,
+            })
             .collect(),
     ))
 }

@@ -3,12 +3,22 @@ name = "nipa-download"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "librqbit 封装 + Mikan RSS 订阅（stub）"
+description = "librqbit 封装 + Mikan RSS 订阅"
 
 # 回流约束（§3.1）：不得依赖 axum/tower。
-# M0 阶段刻意不引入 librqbit（重依赖），M4 接入（版本与客户端对齐，§7.1）。
+# librqbit 固定 8.1.1：与 NipaPlay 客户端对齐，避免 9.x SessionOptions 破坏性变更。
 
 [dependencies]
 nipa-core = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+librqbit = { version = "=8.1.1", default-features = false, features = ["rust-tls"] }
+feed-rs = "2.4"
+regex = "1"
+url = "2"
