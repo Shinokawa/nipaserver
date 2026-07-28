@@ -2093,7 +2093,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "hmac",
  "image",
@@ -2124,7 +2124,7 @@ version = "0.1.0"
 dependencies = [
  "chardetng",
  "encoding_rs",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "nipa-agent",
  "nipa-core",
