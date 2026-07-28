@@ -7,7 +7,7 @@ RUN npm ci
 COPY webui/app/ ./
 RUN npm run check && npm run build
 
-FROM rust:1.88-bookworm AS rust-builder
+FROM rust:1.97-bookworm AS rust-builder
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY README.md LICENSE ./
